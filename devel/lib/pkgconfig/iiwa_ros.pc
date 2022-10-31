@@ -1,0 +1,8 @@
+prefix=/home/cair1/github_packages/iiwa_stack/devel
+
+Name: iiwa_ros
+Description: Description of iiwa_ros
+Version: 1.4.0
+Cflags: -I/home/cair1/github_packages/iiwa_stack/src/iiwa_stack/iiwa_ros/include
+Libs: -L${prefix}/lib -liiwa_ros
+Requires: iiwa_msgs roscpp
