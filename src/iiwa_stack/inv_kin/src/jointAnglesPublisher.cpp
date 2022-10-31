@@ -129,10 +129,15 @@ double armAng = 0; //0-360°
 
 //Parameters ----------------------------------------------------------------
 //limb length [mm], total: 1330mm (with zimmer group gripper), else: 1266mm
-double d_bs = 340;
-double d_se = 400;
+double d_bs = 360;
+double d_se = 420;
 double d_ew = 400;
 double d_wf = 126; //without gripper (x,y,z output of smartPad is without gripper)
+
+////// 
+// d_bs = 360;
+// d_se = 420;
+///////
 
 
 vector<double> p_shoulder = {0, 0, d_bs}; //position of shoulder
@@ -242,10 +247,7 @@ float z_before;
 int main(int argc, char *argv[])
 {
 
-////// 
-d_bs = 360;
-d_se = 420;
-///////
+
 
     vector<float> origin;
     origin.push_back(0.0);
@@ -1191,22 +1193,22 @@ void inv_kin_kuka_angle_calc(double X, double Y, double Z, double eef_phi, doubl
     phi1 = atan2(Pe.at(1),Pe.at(0));    //atan2 is only needed here!?
     if (abs(phi1) >= 2*pi) //map rotation to 360° circle
         phi1 = 2*pi - phi1;
-    phi1 = round(phi1*10000)/10000; //round to 2 decimal places
+    // phi1 = round(phi1*10000)/10000; //round to 2 decimal places
     //phi1 = phi1 - pi;
     if (abs(phi1) == 0) //avoid negative 0
         phi1 = 0;
     phi1_1 = (phi1 * 180)/pi;
-    phi1_1 = round(phi1_1*10000)/10000; //round to 2 decimal places
+    // phi1_1 = round(phi1_1*10000)/10000; //round to 2 decimal places
 
     //phi 2 ---------------------------------------------------------------------------------------
     phi2 = acos((Pe.at(2) - d_bs)/d_se);
     if (abs(phi2) >= 2*pi) //map rotation to 360° circle
         phi2 = 2*pi - phi2;
-    phi2 = round(phi2*10000)/10000; //round to 2 decimal places
+    // phi2 = round(phi2*10000)/10000; //round to 2 decimal places
     if (abs(phi2) == 0) //avoid negative 0
         phi2 = 0;
     phi2_2 = (phi2 * 180)/pi;
-    phi2_2 = round(phi2_2*10000)/10000; //round to 2 decimal places
+    // phi2_2 = round(phi2_2*10000)/10000; //round to 2 decimal places
 
     //phi 3 ---------------------------------------------------------------------------------------
     phi3 = atan2((pw.at(1)*cos(phi1) - pw.at(0)*sin(phi1)) , (d_bs*sin(phi2) -
@@ -1221,22 +1223,22 @@ void inv_kin_kuka_angle_calc(double X, double Y, double Z, double eef_phi, doubl
     else if (phi3 > 2*pi)
         phi3 = 2*pi - phi3;
 
-    phi3 = round(phi3*10000)/10000; //round to 2 decimal places
+    // phi3 = round(phi3*10000)/10000; //round to 2 decimal places
     if (abs(phi3) == 0) //avoid negative 0
         phi3 = 0;
     phi3_2 = (phi3 * 180)/pi;
-    phi3_2 = round(phi3_2*10000)/10000; //round to 2 decimal places
+    // phi3_2 = round(phi3_2*10000)/10000; //round to 2 decimal places
 
     //phi 4 ---------------------------------------------------------------------------------------
     phi4 = acos((pw.at(2)*cos(phi2) - d_bs*cos(phi2) + pw.at(0)*cos(phi1)*sin(phi2) +
                  pw.at(1)*sin(phi1)*sin(phi2)-d_se)/d_ew);
     if (abs(phi4) >= 2*pi) //map rotation to 360° circle
         phi4 = 2*pi - phi4;
-    phi4 = round(phi4*10000)/10000; //round to 2 decimal places
+    // phi4 = round(phi4*10000)/10000; //round to 2 decimal places
     if (abs(phi4) == 0) //avoid negative 0
         phi4 = 0;
     phi4_2 = (phi4 * 180)/pi;
-    phi4_2 = round(phi4_2*10000)/10000; //round to 2 decimal places
+    // phi4_2 = round(phi4_2*10000)/10000; //round to 2 decimal places
 
     //phi 5 ---------------------------------------------------------------------------------------
     phi5 = atan2((Y*cos(phi1)*cos(phi3) - X*cos(phi3)*sin(phi1) + Z*sin(phi2)*sin(phi3) -
@@ -1247,11 +1249,11 @@ void inv_kin_kuka_angle_calc(double X, double Y, double Z, double eef_phi, doubl
                  Y*cos(phi2)*cos(phi3)*cos(phi4)*sin(phi1)));
     if (abs(phi5) >= 2*pi) //map rotation to 360° circle
         phi5 = 2*pi - phi5;
-    phi5 = round(phi5*10000)/10000; //round to 2 decimal places
+    // phi5 = round(phi5*10000)/10000; //round to 2 decimal places
     if (abs(phi5) == 0) //avoid negative 0
         phi5 = 0;
     phi5_2 = (phi5 * 180)/pi;
-    phi5_2 = round(phi5_2*10000)/10000; //round to 2 decimal places
+    // phi5_2 = round(phi5_2*10000)/10000; //round to 2 decimal places
 
     //phi 6 ---------------------------------------------------------------------------------------
     phi6 = acos((Z*cos(phi2)*cos(phi4) - d_se*cos(phi4) - d_bs*cos(phi2)*cos(phi4) + X*cos(phi1)*cos(phi4)*sin(phi2) +
@@ -1260,11 +1262,11 @@ void inv_kin_kuka_angle_calc(double X, double Y, double Z, double eef_phi, doubl
                   Y*cos(phi2)*cos(phi3)*sin(phi1)*sin(phi4) - d_ew) / d_wf);
     if (abs(phi6) >= 2*pi) //map rotation to 360° circle
         phi6 = 2*pi - phi6;
-    phi6 = round(phi6*10000)/10000; //round to 2 decimal places
+    // phi6 = round(phi6*10000)/10000; //round to 2 decimal places
     if (abs(phi6) == 0) //avoid negative 0
         phi6 = 0;
     phi6_2 = (phi6 * 180)/pi;
-    phi6_2 = round(phi6_2*10000)/10000; //round to 2 decimal places
+    // phi6_2 = round(phi6_2*10000)/10000; //round to 2 decimal places
 
     //phi 7 ---------------------------------------------------------------------------------------
     phi7 =  atan((-1) * (Tcb.at(1)*cos(phi1)*cos(phi3)*cos(phi6)*sin(phi5) - Tcb.at(2)*cos(phi2)*cos(phi4)*sin(phi6) + Tcb.at(2)*cos(phi2)*cos(phi5)*cos(phi6)*sin(phi4) -
@@ -1280,11 +1282,11 @@ void inv_kin_kuka_angle_calc(double X, double Y, double Z, double eef_phi, doubl
                    Tcb.at(1)*sin(phi1)*sin(phi2)*sin(phi4)*sin(phi5) - Tcb.at(0)*cos(phi1)*cos(phi2)*cos(phi3)*cos(phi4)*sin(phi5) - Tcb.at(1)*cos(phi2)*cos(phi3)*cos(phi4)*sin(phi1)*sin(phi5)));
     if (abs(phi7) >= 2*pi) //map rotation to 360° circle
         phi7 = 2*pi - phi7;
-    phi7 = round(phi7*10000)/10000; //round to 2 decimal places
+    // phi7 = round(phi7*10000)/10000; //round to 2 decimal places
     if (abs(phi7) == 0) //avoid negative 0
         phi7 = 0;
     phi7_2 = (phi7 * 180)/pi;
-    phi7_2 = round(phi7_2*10000)/10000; //round to 2 decimal places
+    // phi7_2 = round(phi7_2*10000)/10000; //round to 2 decimal places
 }
 
 vector<double> Mat_vec_prod_Rx(double theta, vector<double> input_vector)

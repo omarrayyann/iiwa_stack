@@ -22,6 +22,8 @@ pause2
 pause2
 /home/cair1/github_packages/iiwa_stack/src/iiwa_stack/inv_kin/src/Path/change_bottom_right_angle_inverse.txt
 pause2
+/home/cair1/github_packages/iiwa_stack/src/iiwa_stack/inv_kin/src/Path/bottom_right_inverse.txt
+pause2
 /home/cair1/github_packages/iiwa_stack/src/iiwa_stack/inv_kin/src/Path/bottom_left.txt
 pause2
 /home/cair1/github_packages/iiwa_stack/src/iiwa_stack/inv_kin/src/Path/change_bottom_left_angle.txt
