@@ -228,12 +228,26 @@ void fixForStick(float& xPosition, float& yPosition, float& zPosition, float eef
 
 }
 
+void publishMessage(ros::Publisher pub, std_msgs::Float32MultiArray messageArray){
+
+
+            pub.publish(messageArray);
+
+}
+
+void newPosition(){
+
+}
+
+
 float x_before;
 float y_before;
 float z_before;
 
 int main(int argc, char *argv[])
 {
+
+
 
     vector<float> origin;
     origin.push_back(0.0);
@@ -247,6 +261,7 @@ int main(int argc, char *argv[])
     ros::Publisher pub = n.advertise<std_msgs::Float32MultiArray>("jointAnglesGoal", 100);
     ros::Publisher pub2 = n.advertise<std_msgs::Float32MultiArray>("eefGoal", 100);
 
+
     float* jointAngles;
     float xPosition;
     float yPosition;
@@ -254,6 +269,9 @@ int main(int argc, char *argv[])
     float eefPhiOrientation;
     float eefThetaOrientation;
     float armAngle;
+
+
+
     
 	while (ros::ok())
 	{
@@ -284,10 +302,6 @@ int main(int argc, char *argv[])
             cout << "Command: ";
             cin >> commandPicked;
         }
-
-        if (commandPicked=="8"){
-         
-            }
 
         if (commandPicked=="8"){
             string fileName;
