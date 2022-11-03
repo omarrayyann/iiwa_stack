@@ -15,6 +15,7 @@
         "vector": "cpp",
         "stdexcept": "cpp",
         "new": "cpp",
-        "iostream": "cpp"
+        "iostream": "cpp",
+        "limits": "cpp"
     }
 }
