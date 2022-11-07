@@ -57,8 +57,8 @@ def subscriber():
     rospy.Subscriber("eefGoal", Float32MultiArray, callback)
     rospy.Subscriber("iiwa/state/CartesianPose", CartesianPose, callbackActual)
 
-    # fig, (plt1, plt2, plt3, plt4, plt5, plt6) = plt.subplots(6)
-    fig, (plt1, plt2, plt3) = plt.subplots(3)
+    fig, (plt1, plt2, plt3, plt4, plt5, plt6) = plt.subplots(6)
+    # fig, (plt1, plt2, plt3) = plt.subplots(3)
 
     fig.suptitle('KUKA IIWA 14 - X,Y,Z')
 
@@ -77,15 +77,15 @@ def subscriber():
                 plt3.scatter(0, z ,color='green')
                 plt3.scatter(0, zActual, color='red')
             else:
-                # plt4.scatter((datetime.datetime.now() - startingTime).total_seconds() * 1000, x - xActual ,color='green')
+                plt4.scatter((datetime.datetime.now() - startingTime).total_seconds() * 1000, x - xActual ,color='green')
                 plt1.scatter((datetime.datetime.now() - startingTime).total_seconds() * 1000, x, color='green')
                 plt1.scatter((datetime.datetime.now() - startingTime).total_seconds() * 1000, xActual, color='red')
 
-                # plt5.scatter((datetime.datetime.now() - startingTime).total_seconds() * 1000, y-yActual ,color='green')
+                plt5.scatter((datetime.datetime.now() - startingTime).total_seconds() * 1000, y-yActual ,color='green')
                 plt2.scatter((datetime.datetime.now() - startingTime).total_seconds() * 1000, y, color='green')
                 plt2.scatter((datetime.datetime.now() - startingTime).total_seconds() * 1000, yActual, color='red')
 
-                # plt6.scatter((datetime.datetime.now() - startingTime).total_seconds() * 1000, z-zActual ,color='green')
+                plt6.scatter((datetime.datetime.now() - startingTime).total_seconds() * 1000, z-zActual ,color='green')
                 plt3.scatter((datetime.datetime.now() - startingTime).total_seconds() * 1000, z, color='green')
                 plt3.scatter((datetime.datetime.now() - startingTime).total_seconds() * 1000, zActual, color='red')
 

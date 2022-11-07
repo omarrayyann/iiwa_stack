@@ -132,7 +132,7 @@ double armAng = 0;  // 0-360°
 double d_bs = 360;
 double d_se = 420;
 double d_ew = 400;
-double d_wf = 126;  // without gripper (x,y,z output of smartPad is without gripper)
+double d_wf = 152;  // without gripper (x,y,z output of smartPad is without gripper)
 
 //////
 // d_bs = 360;
@@ -222,8 +222,8 @@ void getVariablesFromConsole(float& x, float& y, float& z, float& eefPhi, float&
 void fixForStick(float& xPosition, float& yPosition, float& zPosition, float eefPhiOrientation,
                  float eefThetaOrientation)
 {
-  float eefThetaOrientationRadians = ceil(eefThetaOrientation * deg2rad * 100000.0) / 100000.0;
-  float eefPhiOrientationRadians = ceil(eefPhiOrientation * deg2rad * 100000.0) / 100000.0;
+  float eefThetaOrientationRadians = ceil(eefThetaOrientation * deg2rad);
+  float eefPhiOrientationRadians = ceil(eefPhiOrientation * deg2rad);
   cout << "Before: " << endl << xPosition << endl << yPosition << endl << zPosition << endl;
   xPosition -= stickLength * sin(-eefThetaOrientationRadians) * cos(eefPhiOrientationRadians - (M_PI / 2));
   yPosition -= stickLength * sin(-eefThetaOrientationRadians) * sin(eefPhiOrientationRadians - (M_PI / 2));
@@ -236,6 +236,8 @@ bool publishNewEEF(ros::Publisher jointAnglesPublisher, ros::Publisher xyzPublis
                    float* jointAngles)
 {
   std_msgs::Float32MultiArray messageArray;
+
+  armAng = 0;
 
   messageArray.data = {xPosition, yPosition, zPosition};
 
@@ -659,7 +661,7 @@ double adapt_elbow_position(double X, double Y, double Z, double eef_phi, double
          abs(phi5) >= phi5_max | abs(phi6) >= phi6_max | abs(phi7) >= phi7_max)
   {
     // use redundancy circle to avoid joint limits
-    armAng = armAng + 0.01;
+    armAng = armAng + 0.010;
     loop_count += 0.01;
 
     // calc new angle values
@@ -853,6 +855,7 @@ void inv_kin_kuka_angle_calc(double X, double Y, double Z, double eef_phi, doubl
   phi3 = atan2(
       (pw.at(1) * cos(phi1) - pw.at(0) * sin(phi1)),
       (d_bs * sin(phi2) - pw.at(2) * sin(phi2) + pw.at(0) * cos(phi1) * cos(phi2) + pw.at(1) * cos(phi2) * sin(phi1)));
+
   phi3 = phi3 - pi;  // otherwise wrist position wrong!?
 
   // if (abs(phi3) >= 2*pi) //map rotation to 360° circle
