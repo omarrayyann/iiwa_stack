@@ -68,7 +68,7 @@ void init_udp();
 
 //----------------------------------------------------------
 
-#define pi 3.14159
+#define pi 3.14159265
 
 double deg2rad = pi / 180.0;
 bool axis_limit_violation = false;
@@ -133,11 +133,6 @@ double d_bs = 360;
 double d_se = 420;
 double d_ew = 400;
 double d_wf = 152;  // without gripper (x,y,z output of smartPad is without gripper)
-
-//////
-// d_bs = 360;
-// d_se = 420;
-///////
 
 vector<double> p_shoulder = {0, 0, d_bs};  // position of shoulder
 vector<double> vec_eef = {0, 0, 0};        // vector base (x=y=z=0) to tcp tip
@@ -236,8 +231,6 @@ bool publishNewEEF(ros::Publisher jointAnglesPublisher, ros::Publisher xyzPublis
                    float* jointAngles)
 {
   std_msgs::Float32MultiArray messageArray;
-
-  armAng = 0;
 
   messageArray.data = {xPosition, yPosition, zPosition};
 
@@ -547,11 +540,11 @@ int main(int argc, char* argv[])
         cin >> commandi;
         if (commandi == "u")
         {
-          array[indexToChange] += 2;
+          array[indexToChange] += 0.25;
         }
         else if (commandi == "d")
         {
-          array[indexToChange] -= 2;
+          array[indexToChange] -= 0.25;
         }
         else
         {
@@ -798,8 +791,18 @@ void inv_kin_kuka_angle_calc(double X, double Y, double Z, double eef_phi, doubl
   /*This only works for d_se = b, otherwise use formula for general triangle (Tafelwerk P.26)*/
 
   // length of vector shoulder to center of circle
-  pc = Vector_division(psw, 2.0);
-  double pc_length = sqrt(pow(pc.at(0), 2) + pow(pc.at(1), 2) + pow(pc.at(2), 2));
+
+  double psw_length = sqrt(pow(psw.at(0), 2) + pow(psw.at(1), 2) + pow(psw.at(2), 2));
+
+  cout << "psw_length: " << psw_length << endl;
+
+  // double pc_length = sqrt(pow(pc.at(0), 2) + pow(pc.at(1), 2) + pow(pc.at(2), 2));
+
+  double pc_length = abs(420.0 * (pow(400.0, 2) - pow(420.0, 2) - pow(psw_length, 2)) / (840.0 * psw_length));
+
+  cout << "after: " << pc_length << endl;
+
+  pc = Vector_division(psw, (psw_length / pc_length));
 
   // circle radius
   double alpha = asin(pc_length / d_se);
@@ -852,6 +855,7 @@ void inv_kin_kuka_angle_calc(double X, double Y, double Z, double eef_phi, doubl
   // phi2_2 = round(phi2_2*10000)/10000; //round to 2 decimal places
 
   // phi 3 ---------------------------------------------------------------------------------------
+
   phi3 = atan2(
       (pw.at(1) * cos(phi1) - pw.at(0) * sin(phi1)),
       (d_bs * sin(phi2) - pw.at(2) * sin(phi2) + pw.at(0) * cos(phi1) * cos(phi2) + pw.at(1) * cos(phi2) * sin(phi1)));
@@ -876,6 +880,7 @@ void inv_kin_kuka_angle_calc(double X, double Y, double Z, double eef_phi, doubl
   phi4 = acos((pw.at(2) * cos(phi2) - d_bs * cos(phi2) + pw.at(0) * cos(phi1) * sin(phi2) +
                pw.at(1) * sin(phi1) * sin(phi2) - d_se) /
               d_ew);
+
   if (abs(phi4) >= 2 * pi)  // map rotation to 360° circle
     phi4 = 2 * pi - phi4;
   // phi4 = round(phi4*10000)/10000; //round to 2 decimal places

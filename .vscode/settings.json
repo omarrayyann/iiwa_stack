@@ -16,6 +16,7 @@
         "stdexcept": "cpp",
         "new": "cpp",
         "iostream": "cpp",
-        "limits": "cpp"
+        "limits": "cpp",
+        "cmath": "cpp"
     }
 }
