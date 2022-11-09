@@ -218,11 +218,12 @@ add_executable(jointAnglesPublisher src/jointAnglesPublisher.cpp)
 add_executable(jointAnglesSubscriber src/jointAnglesSubscriber.cpp)
 add_executable(jointAngleStateReader src/jointAngleStateReader.cpp)
 add_executable(CartesianPoseReader src/CartesianPoseReader.cpp)
+add_executable(pathsGenerator src/pathsGenerator.cpp)
+
 
 target_link_libraries(eefGoalPublisher ${catkin_LIBRARIES})
 target_link_libraries(jointAnglesPublisher ${catkin_LIBRARIES})
 target_link_libraries(jointAnglesSubscriber ${catkin_LIBRARIES})
 target_link_libraries(jointAngleStateReader ${catkin_LIBRARIES})
 target_link_libraries(CartesianPoseReader ${catkin_LIBRARIES})
-
-
+target_link_libraries(pathsGenerator ${catkin_LIBRARIES})

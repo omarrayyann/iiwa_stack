@@ -29,7 +29,7 @@ int main(int argc, char* argv[])
       printCommands();
       cin >> commandPicked;
     }
-    if (commandPicked == "1")
+    if (commandPicked == "2")
     {
       string fileName;
       cout << "Enter file name: " << endl;
@@ -61,7 +61,7 @@ int main(int argc, char* argv[])
       }
       continue;
     }
-    else if (commandPicked == "4")
+    else if (commandPicked == "1")
     {
       cout << "Enter file name: ";
       string fileName;

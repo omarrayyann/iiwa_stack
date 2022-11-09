@@ -217,11 +217,11 @@ void getVariablesFromConsole(float& x, float& y, float& z, float& eefPhi, float&
 void fixForStick(float& xPosition, float& yPosition, float& zPosition, float eefPhiOrientation,
                  float eefThetaOrientation)
 {
-  float eefThetaOrientationRadians = ceil(eefThetaOrientation * deg2rad);
-  float eefPhiOrientationRadians = ceil(eefPhiOrientation * deg2rad);
+  float eefThetaOrientationRadians = eefThetaOrientation * deg2rad;
+  float eefPhiOrientationRadians = eefPhiOrientation * deg2rad;
   cout << "Before: " << endl << xPosition << endl << yPosition << endl << zPosition << endl;
-  xPosition -= stickLength * sin(-eefThetaOrientationRadians) * cos(eefPhiOrientationRadians - (M_PI / 2));
-  yPosition -= stickLength * sin(-eefThetaOrientationRadians) * sin(eefPhiOrientationRadians - (M_PI / 2));
+  xPosition -= stickLength * sin(-eefThetaOrientationRadians) * cos(eefPhiOrientationRadians + (M_PI / 2));
+  yPosition -= stickLength * sin(-eefThetaOrientationRadians) * sin(eefPhiOrientationRadians + (M_PI / 2));
   zPosition -= stickLength * cos(-eefThetaOrientationRadians);
   cout << "After: " << endl << xPosition << endl << yPosition << endl << zPosition << endl;
 }
@@ -239,6 +239,16 @@ bool publishNewEEF(ros::Publisher jointAnglesPublisher, ros::Publisher xyzPublis
   fixForStick(xPosition, yPosition, zPosition, eefPhiOrientation, eefThetaOrientation);
   if (inv_kin_kuka(xPosition, yPosition, zPosition, eefPhiOrientation, eefThetaOrientation, armAngle, jointAngles))
   {
+    // safety
+
+    if (abs(jointAngles[0]) > 169 || abs(jointAngles[1]) > 119 || (jointAngles[2]) > 169 || abs(jointAngles[3]) > 119 ||
+        abs(jointAngles[4]) > 169 || abs(jointAngles[5]) > 119 || abs(jointAngles[6]) > 174)
+    {
+      ROS_INFO("DID NOT SEND ANGLES - SAFETY");
+
+      return false;
+    }
+
     messageArray.data.clear();
     messageArray.data = {jointAngles[0], jointAngles[1], jointAngles[2], jointAngles[3],
                          jointAngles[4], jointAngles[5], jointAngles[6]};
