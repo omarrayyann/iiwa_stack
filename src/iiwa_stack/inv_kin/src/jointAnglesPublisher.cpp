@@ -132,7 +132,8 @@ double armAng = 0;  // 0-360°
 double d_bs = 360;
 double d_se = 420;
 double d_ew = 400;
-double d_wf = 152;  // without gripper (x,y,z output of smartPad is without gripper)
+// double d_wf = 152;  // without gripper (x,y,z output of smartPad is without gripper)
+double d_wf = 639;  // withwithout 48.7 gripper (x,y,z output of smartPad is without gripper)
 
 vector<double> p_shoulder = {0, 0, d_bs};  // position of shoulder
 vector<double> vec_eef = {0, 0, 0};        // vector base (x=y=z=0) to tcp tip
@@ -236,7 +237,7 @@ bool publishNewEEF(ros::Publisher jointAnglesPublisher, ros::Publisher xyzPublis
 
   xyzPublisher.publish(messageArray);
 
-  fixForStick(xPosition, yPosition, zPosition, eefPhiOrientation, eefThetaOrientation);
+  // fixForStick(xPosition, yPosition, zPosition, eefPhiOrientation, eefThetaOrientation);
   if (inv_kin_kuka(xPosition, yPosition, zPosition, eefPhiOrientation, eefThetaOrientation, armAngle, jointAngles))
   {
     // safety
@@ -550,11 +551,11 @@ int main(int argc, char* argv[])
         cin >> commandi;
         if (commandi == "u")
         {
-          array[indexToChange] += 0.25;
+          array[indexToChange] += 2;
         }
         else if (commandi == "d")
         {
-          array[indexToChange] -= 0.25;
+          array[indexToChange] -= 2;
         }
         else
         {
@@ -617,8 +618,8 @@ bool inv_kin_kuka(double X, double Y, double Z, double eef_phi, double eef_theta
   else if (abs(phi1) >= phi1_max | abs(phi2) >= phi2_max | abs(phi3) >= phi3_max | abs(phi4) >= phi4_max |
            abs(phi5) >= phi5_max | abs(phi6) >= phi6_max | abs(phi7) >= phi7_max)
   {
-    armAng = adapt_elbow_position(X, Y, Z, eef_phi, eef_theta, armAng_in);
-    // return false;
+    // armAng = adapt_elbow_position(X, Y, Z, eef_phi, eef_theta, armAng_in);
+    return false;
   }
   // store calculated joint values for next round
   phi1_old = phi1;

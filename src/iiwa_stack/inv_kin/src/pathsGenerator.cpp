@@ -110,9 +110,9 @@ int main(int argc, char* argv[])
       }
       else if (command == "2")
       {
-        cout << "Enter the y-starting ";
+        cout << "Enter the x-starting ";
         cin >> c;
-        cout << "Enter the y-ending ";
+        cout << "Enter the x-ending ";
         cin >> cTo;
         cout << "Enter z: ";
         cin >> zPosition;
@@ -122,8 +122,8 @@ int main(int argc, char* argv[])
         cin >> eefThetaOrientation;
         cout << "Enter the Arm Angle: ";
         cin >> armAngle;
-        cout << "X: ";
-        cin >> from;
+        cout << "Y: ";
+        cin >> y;
         cout << "Enter number of points: ";
         cin >> n;
         cout << "Frames per second (frequencey): ";
@@ -193,7 +193,7 @@ int main(int argc, char* argv[])
       {
         for (int i = 0; i <= n; i++)
         {
-          y = ((cTo - c) / n) * i + c;
+          from = ((cTo - c) / n) * i + c;
           if (i == n)
           {
             file << from << ", " << y << ", " << zPosition << ", " << eefPhiOrientation << ", " << eefThetaOrientation
