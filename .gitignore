@@ -40,7 +40,7 @@ build
 *.dll
 *.lib
 *.exe
-*.bag
+# *.bag
 *.o
 *.md5sum
 
