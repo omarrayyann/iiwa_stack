@@ -1,19 +1,22 @@
 cmake_minimum_required(VERSION 3.0.2)
-project(inv_kin)
+project(iiwa_control_vinicius)
 
 ## Compile as C++11, supported in ROS Kinetic and newer
-# add_compile_options(-std=c++11)
+ add_compile_options(-std=c++11)
 
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
+
+find_package(eigen3)
 find_package(catkin REQUIRED COMPONENTS
+  roscpp
+  std_msgs
   roscpp
   rospy
   std_msgs
   iiwa_msgs
 )
-
 
 
 ## System dependencies are found with CMake's conventions
@@ -105,11 +108,10 @@ find_package(catkin REQUIRED COMPONENTS
 ## LIBRARIES: libraries you create in this project that dependent projects also need
 ## CATKIN_DEPENDS: catkin_packages dependent projects also need
 ## DEPENDS: system dependencies of this project that dependent projects also need
-
 catkin_package(
 #  INCLUDE_DIRS include
-#  LIBRARIES inv_kin
-#  CATKIN_DEPENDS roscpp rospy std_msgs
+#  LIBRARIES iiwa_control_vinicius
+#  CATKIN_DEPENDS eigen3 roscpp std_msgs
 #  DEPENDS system_lib
 )
 
@@ -120,13 +122,13 @@ catkin_package(
 ## Specify additional locations of header files
 ## Your package locations should be listed before other locations
 include_directories(
-# include
+ include
   ${catkin_INCLUDE_DIRS}
 )
 
 ## Declare a C++ library
 # add_library(${PROJECT_NAME}
-#   src/${PROJECT_NAME}/inv_kin.cpp
+#   src/${PROJECT_NAME}/iiwa_control_vinicius.cpp
 # )
 
 ## Add cmake target dependencies of the library
@@ -137,7 +139,11 @@ include_directories(
 ## Declare a C++ executable
 ## With catkin_make all packages are built within a single CMake context
 ## The recommended prefix ensures that target names across packages don't collide
-# add_executable(${PROJECT_NAME}_node src/inv_kin_node.cpp)
+# add_executable(${PROJECT_NAME}_node src/iiwa_control_vinicius_node.cpp)
+
+add_executable(${PROJECT_NAME}_node src/velocity_control.cpp)
+
+##add_executable(robot_kinematics src/robot_kinematics.cpp)
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
@@ -150,9 +156,9 @@ include_directories(
 # add_dependencies(${PROJECT_NAME}_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
 ## Specify libraries to link a library or executable target against
-# target_link_libraries(${PROJECT_NAME}_node
-#   ${catkin_LIBRARIES}
-# )
+ target_link_libraries(${PROJECT_NAME}_node
+   ${catkin_LIBRARIES}
+ )
 
 #############
 ## Install ##
@@ -201,7 +207,7 @@ include_directories(
 #############
 
 ## Add gtest based cpp test target and link libraries
-# catkin_add_gtest(${PROJECT_NAME}-test test/test_inv_kin.cpp)
+# catkin_add_gtest(${PROJECT_NAME}-test test/test_iiwa_control_vinicius.cpp)
 # if(TARGET ${PROJECT_NAME}-test)
 #   target_link_libraries(${PROJECT_NAME}-test ${PROJECT_NAME})
 # endif()
@@ -209,22 +215,5 @@ include_directories(
 ## Add folders to be run by python nosetests
 # catkin_add_nosetests(test)
 
-catkin_install_python(PROGRAMS src/eefVisualizer.py
-  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
-)
 
-add_executable(eefGoalPublisher src/eefGoalPublisher.cpp)
-add_executable(inverse_kinematics src/inverse_kinematics.cpp)
-add_executable(jointAnglesPublisher src/jointAnglesPublisher.cpp)
-add_executable(jointAnglesSubscriber src/jointAnglesSubscriber.cpp)
-add_executable(jointAngleStateReader src/jointAngleStateReader.cpp)
-add_executable(CartesianPoseReader src/CartesianPoseReader.cpp)
-add_executable(pathsGenerator src/pathsGenerator.cpp)
-add_executable(joint_angles_publisher src/joint_angles_publisher.cpp)
 
-target_link_libraries(eefGoalPublisher ${catkin_LIBRARIES})
-target_link_libraries(jointAnglesPublisher ${catkin_LIBRARIES})
-target_link_libraries(jointAnglesSubscriber ${catkin_LIBRARIES})
-target_link_libraries(jointAngleStateReader ${catkin_LIBRARIES})
-target_link_libraries(CartesianPoseReader ${catkin_LIBRARIES})
-target_link_libraries(pathsGenerator ${catkin_LIBRARIES})

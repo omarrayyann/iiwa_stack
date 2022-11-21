@@ -53,9 +53,6 @@ using namespace std;
 // for udp -----------------------------------------------------------------------------------------
 #define NPACK 10
 #define PORT 30000
-//#define SERVER "127.0.0.1"    //internal
-//#define SERVER "192.168.178.60" //desktop
-//#define SERVER "192.168.178.51" //dell
 #define SERVER "10.2.128.86"  // dell local
 //#define SERVER "10.2.4.53"
 #define BUFLEN 512  // Max length of buffer
@@ -68,7 +65,7 @@ void init_udp();
 
 //----------------------------------------------------------
 
-#define pi 3.14159
+#define pi 3.14159265
 
 double deg2rad = pi / 180.0;
 bool axis_limit_violation = false;
@@ -122,8 +119,6 @@ double phi5_max = 2.967055;  // 170°
 double phi6_max = 2.09435;   // 120°
 double phi7_max = 3.054325;  // 175°
 
-float stickLength = 0;
-
 // arm angle
 double armAng = 0;  // 0-360°
 
@@ -132,12 +127,8 @@ double armAng = 0;  // 0-360°
 double d_bs = 360;
 double d_se = 420;
 double d_ew = 400;
-double d_wf = 126;  // without gripper (x,y,z output of smartPad is without gripper)
-
-//////
-// d_bs = 360;
-// d_se = 420;
-///////
+// double d_wf = 152;  // without gripper (x,y,z output of smartPad is without gripper)
+double d_wf = 639;  // withwithout 48.7 gripper (x,y,z output of smartPad is without gripper)
 
 vector<double> p_shoulder = {0, 0, d_bs};  // position of shoulder
 vector<double> vec_eef = {0, 0, 0};        // vector base (x=y=z=0) to tcp tip
@@ -162,795 +153,6 @@ void die(char* s);
 vector<string> split(string s, string delimiter);
 string removeSpaces(string s);
 
-void getVariablesFromConsole(float& x, float& y, float& z, float& eefPhi, float& eefTheta, float& armAngle)
-{
-  cout << "X position: ";
-  while (!(cin >> x))
-  {
-    cin.clear();
-    cin.ignore(numeric_limits<streamsize>::max(), '\n');
-    cout << "Value entered incorrect, please try again!" << endl;
-    cout << "X position: ";
-  }
-
-  cout << "Y position: ";
-  while (!(cin >> y))
-  {
-    cin.clear();
-    cin.ignore(numeric_limits<streamsize>::max(), '\n');
-    cout << "Value entered incorrect, please try again!" << endl;
-    cout << "Y position: ";
-  }
-
-  cout << "Z position: ";
-  while (!(cin >> z))
-  {
-    cin.clear();
-    cin.ignore(numeric_limits<streamsize>::max(), '\n');
-    cout << "Value entered incorrect, please try again!" << endl;
-    cout << "Z position: ";
-  }
-
-  cout << "End Effecetor Phi orientation angle (degrees): ";
-  while (!(cin >> eefPhi))
-  {
-    cin.clear();
-    cin.ignore(numeric_limits<streamsize>::max(), '\n');
-    cout << "Value entered incorrect, please try again!" << endl;
-    cout << "End Effecetor Phi orientation angle (degrees): ";
-  }
-
-  cout << "End Effecetor Theta orientation angle (degrees): ";
-  while (!(cin >> eefTheta))
-  {
-    cin.clear();
-    cin.ignore(numeric_limits<streamsize>::max(), '\n');
-    cout << "Value entered incorrect, please try again!" << endl;
-    cout << "End Effecetor Theta orientation angle (degrees): ";
-  }
-
-  cout << "Arm Angle: ";
-  while (!(cin >> armAngle))
-  {
-    cin.clear();
-    cin.ignore(numeric_limits<streamsize>::max(), '\n');
-    cout << "Value entered incorrect, please try again!" << endl;
-    cout << "Arm Angle: ";
-  }
-}
-
-void fixForStick(float& xPosition, float& yPosition, float& zPosition, float eefPhiOrientation,
-                 float eefThetaOrientation)
-{
-  float eefThetaOrientationRadians = eefThetaOrientation * deg2rad;
-  float eefPhiOrientationRadians = eefPhiOrientation * deg2rad;
-  cout << "Before: " << endl << xPosition << endl << yPosition << endl << zPosition << endl;
-  xPosition -= stickLength * sin(-eefThetaOrientationRadians) * cos(eefPhiOrientationRadians - (M_PI / 2));
-  yPosition -= stickLength * sin(-eefThetaOrientationRadians) * sin(eefPhiOrientationRadians - (M_PI / 2));
-  zPosition -= stickLength * cos(-eefThetaOrientationRadians);
-  cout << "After: " << endl << xPosition << endl << yPosition << endl << zPosition << endl;
-}
-
-void publishMessage(ros::Publisher pub, std_msgs::Float32MultiArray messageArray)
-{
-  pub.publish(messageArray);
-}
-
-void newPosition() {}
-
-float x_before;
-float y_before;
-float z_before;
-
-int main(int argc, char* argv[])
-{
-  vector<float> origin;
-  origin.push_back(0.0);
-  origin.push_back(0.0);
-  origin.push_back(0.0);
-
-  init_udp();
-
-  ros::init(argc, argv, "jointAnglesPublisher");
-  ros::NodeHandle n;
-  ros::Publisher pub = n.advertise<std_msgs::Float32MultiArray>("jointAnglesGoal", 100);
-  ros::Publisher pub2 = n.advertise<std_msgs::Float32MultiArray>("eefGoal", 100);
-
-  float* jointAngles;
-  float xPosition;
-  float yPosition;
-  float zPosition;
-  float eefPhiOrientation;
-  float eefThetaOrientation;
-  float armAngle;
-
-  while (ros::ok())
-  {
-    string commandPicked = "-1";
-    cout << "-------------------------------" << endl;
-    cout << "1: Move EEF" << endl;
-    cout << "2: Read File" << endl;
-    cout << "3: Set new origin" << endl;
-    cout << "4: Create File" << endl;
-    cout << "5: Run txt package" << endl;
-    cout << "6: Edit Stick" << endl;
-    cout << "7: Control using keys" << endl;
-    cout << "8: Reverse File" << endl;
-    cout << "Command: ";
-    cin >> commandPicked;
-
-    while (commandPicked != "1" && commandPicked != "2" && commandPicked != "3" && commandPicked != "4" &&
-           commandPicked != "5" && commandPicked != "6" && commandPicked != "7" && commandPicked != "8")
-    {
-      cout << "Wrong command entered, please try again!" << endl;
-      cout << "1: Move EEF" << endl;
-      cout << "2: Read File" << endl;
-      cout << "3: Set new origin" << endl;
-      cout << "4: Create File" << endl;
-      cout << "5: Run txt package" << endl;
-      cout << "6: Edit Stick" << endl;
-      cout << "7: Control using keys" << endl;
-      cout << "8: Reverse File" << endl;
-      cout << "Command: ";
-      cin >> commandPicked;
-    }
-
-    if (commandPicked == "8")
-    {
-      string fileName;
-      cout << "Enter file name: " << endl;
-      cin >> fileName;
-      stack<string> lines;
-      ifstream ordered;
-      ordered.open(fileName);
-      string line = "";
-      if (!ordered.fail())
-      {
-        while (!ordered.eof())
-        {
-          getline(ordered, line);
-          lines.push(line);
-        }
-        cout << "Enter new file name (reversed): ";
-        cin >> fileName;
-        ofstream reversedFile;
-        reversedFile.open(fileName);
-        while (!lines.empty())
-        {
-          reversedFile << lines.top() << endl;
-          lines.pop();
-        }
-      }
-      else
-      {
-        cout << "Could not find the file" << endl;
-      }
-      continue;
-    }
-    else if (commandPicked == "7")
-    {
-      float array[6] = {xPosition, yPosition, zPosition, eefPhiOrientation, eefThetaOrientation, armAngle};
-      cout << "1: X\n2: Y\n3: Z\n4: Phi\n5: Theta\n6: Arm Angle" << endl;
-      int indexToChange;
-      cout << "Enter Parameter to change: ";
-      cin >> indexToChange;
-      indexToChange--;
-      bool run = true;
-      string commandi = "";
-      while (run)
-      {
-        cout << "Current Value: " << array[indexToChange] << endl;
-        cin >> commandi;
-        if (commandi == "u")
-        {
-          array[indexToChange] += 2;
-        }
-        else if (commandi == "d")
-        {
-          array[indexToChange] -= 2;
-        }
-        else
-        {
-          run = false;
-          break;
-        }
-
-        cout << "New Value: " << array[indexToChange] << endl;
-        xPosition = array[0];
-        yPosition = array[1];
-        zPosition = array[2];
-        eefPhiOrientation = array[3];
-        eefThetaOrientation = array[4];
-        armAngle = array[5];
-
-        jointAngles = new float[7];
-
-        x_before = xPosition;
-        y_before = yPosition;
-        z_before = zPosition;
-
-        fixForStick(xPosition, yPosition, zPosition, eefPhiOrientation, eefThetaOrientation);
-
-        if (inv_kin_kuka(xPosition + origin.at(0), yPosition + origin.at(1), zPosition + origin.at(2),
-                         eefPhiOrientation, eefThetaOrientation, armAngle, jointAngles))
-        {
-          std_msgs::Float32MultiArray messageArray;
-          messageArray.data.clear();
-          messageArray.data = {jointAngles[0], jointAngles[1], jointAngles[2], jointAngles[3],
-                               jointAngles[4], jointAngles[5], jointAngles[6]};
-
-          pub.publish(messageArray);
-          messageArray.data.clear();
-          messageArray.data = {x_before + origin.at(0), y_before + origin.at(1), z_before + origin.at(2)};
-
-          pub2.publish(messageArray);
-
-          delete[] jointAngles;
-
-          ROS_INFO("Published new joint angles required");
-        }
-        else
-        {
-          ROS_INFO("Could not come up with joint angles required");
-        }
-      }
-    }
-    if (commandPicked == "6")
-    {
-      cout << "Current Stick Lenght: " << stickLength << endl;
-      cout << "Enter new Stick Length: ";
-      cin >> stickLength;
-      cout << "Stick Length Updated to: " << stickLength << endl;
-    }
-    if (commandPicked == "1")
-    {
-      getVariablesFromConsole(xPosition, yPosition, zPosition, eefPhiOrientation, eefThetaOrientation, armAngle);
-
-      jointAngles = new float[7];
-
-      x_before = xPosition;
-      y_before = yPosition;
-      z_before = zPosition;
-
-      fixForStick(xPosition, yPosition, zPosition, eefPhiOrientation, eefThetaOrientation);
-      if (inv_kin_kuka(xPosition + origin.at(0), yPosition + origin.at(1), zPosition + origin.at(2), eefPhiOrientation,
-                       eefThetaOrientation, armAngle, jointAngles))
-      {
-        std_msgs::Float32MultiArray messageArray;
-        messageArray.data.clear();
-        messageArray.data = {jointAngles[0], jointAngles[1], jointAngles[2], jointAngles[3],
-                             jointAngles[4], jointAngles[5], jointAngles[6]};
-
-        pub.publish(messageArray);
-        messageArray.data.clear();
-        messageArray.data = {x_before + origin.at(0), y_before + origin.at(1), z_before + origin.at(2)};
-
-        pub2.publish(messageArray);
-
-        delete[] jointAngles;
-
-        ROS_INFO("Published new joint angles required");
-      }
-      else
-      {
-        ROS_INFO("Could not come up with joint angles required");
-      }
-    }
-    else if (commandPicked == "2")
-    {
-      string fileName = "";
-      cout << "File name: " << endl;
-      cin >> fileName;
-      ifstream inputFile;
-      inputFile.open(fileName);
-      if (!inputFile.fail())
-      {
-        cout << "Success" << endl;
-        string line = "";
-        std_msgs::Float32MultiArray messageArray;
-        getline(inputFile, line);
-        ros::Rate rate = ros::Rate(stof(line));
-        while (!inputFile.eof())
-        {
-          cout << "here" << endl;
-          string line = "";
-          getline(inputFile, line);
-          line = removeSpaces(line);
-          if (line[1] == ':')
-          {
-            cout << "line: " << line << endl;
-            int jointAngleNumber = stoi(to_string(line[0] - '0'));
-            line = line.erase(0, 2);
-            jointAngles = new float[7];
-            jointAngles[0] = (float)phi1_old * 180 / M_PI;
-            jointAngles[1] = (float)phi2_old * 180 / M_PI;
-            jointAngles[2] = (float)phi3_old * 180 / M_PI;
-            jointAngles[3] = (float)phi4_old * 180 / M_PI;
-            jointAngles[4] = (float)phi5_old * 180 / M_PI;
-            jointAngles[5] = (float)phi6_old * 180 / M_PI;
-            jointAngles[6] = (float)phi7_old * 180 / M_PI;
-            jointAngles[jointAngleNumber - 1] = stof(line);
-            cout << "joint Angle Number: " << jointAngleNumber << endl
-                 << "joint Angle 0: " << jointAngles[0] << endl
-                 << "new joint Angle: " << stof(line) << endl;
-
-            messageArray.data.clear();
-            messageArray.data = {jointAngles[0], jointAngles[1], jointAngles[2], jointAngles[3],
-                                 jointAngles[4], jointAngles[5], jointAngles[6]};
-
-            delete[] jointAngles;
-
-            pub.publish(messageArray);
-
-            messageArray.data.clear();
-            messageArray.data = {x_before, y_before, z_before};
-
-            pub2.publish(messageArray);
-
-            ROS_INFO("Published new joint angles required");
-          }
-          else
-          {
-            vector<string> eefPosition = split(line, ",");
-            xPosition = stof(eefPosition.at(0)) + origin.at(0);
-            yPosition = stof(eefPosition.at(1)) + origin.at(1);
-            zPosition = stof(eefPosition.at(2)) + origin.at(2);
-            eefPhiOrientation = stof(eefPosition.at(3));
-            eefThetaOrientation = stof(eefPosition.at(4));
-            armAngle = stof(eefPosition.at(5));
-
-            jointAngles = new float[7];
-
-            x_before = xPosition;
-            y_before = yPosition;
-            z_before = zPosition;
-
-            fixForStick(xPosition, yPosition, zPosition, eefPhiOrientation, eefThetaOrientation);
-
-            if (inv_kin_kuka(xPosition, yPosition, zPosition, eefPhiOrientation, eefThetaOrientation, armAngle,
-                             jointAngles))
-            {
-              messageArray.data.clear();
-
-              cout << "try: " << jointAngles[0] << endl;
-              messageArray.data = {jointAngles[0], jointAngles[1], jointAngles[2], jointAngles[3],
-                                   jointAngles[4], jointAngles[5], jointAngles[6]};
-
-              delete[] jointAngles;
-
-              pub.publish(messageArray);
-
-              messageArray.data.clear();
-              messageArray.data = {x_before, y_before, z_before};
-
-              pub2.publish(messageArray);
-
-              ROS_INFO("Published new joint angles required");
-            }
-          }
-          rate.sleep();
-        }
-      }
-      else
-      {
-        cout << "File: " << fileName << " does not exist" << endl;
-      };
-    }
-    else if (commandPicked == "3")
-    {
-      cout << "Current Origin Relative to to Global Cartesian Graph: " << endl;
-      cout << "X: " << origin.at(0) << endl;
-      cout << "Y: " << origin.at(1) << endl;
-      cout << "Z: " << origin.at(2) << endl;
-
-      cout << "Enter new origin" << endl;
-
-      float x = 0;
-      float y = 0;
-      float z = 0;
-
-      cout << "X: ";
-      cin >> x;
-      cout << "Y: ";
-      cin >> y;
-      cout << "Z: ";
-      cin >> z;
-
-      origin[0] = x;
-      origin[1] = y;
-      origin[2] = z;
-
-      cout << "New Origin Relative to to Global Cartesian Graph: " << endl;
-      cout << "X: " << origin.at(0) << endl;
-      cout << "Y: " << origin.at(1) << endl;
-      cout << "Z: " << origin.at(2) << endl;
-    }
-    else if (commandPicked == "4")
-    {
-      cout << "Enter file name: ";
-      string fileName;
-      cin >> fileName;
-
-      ofstream file;
-      file.open(fileName);
-      float m = 0;
-      float c = 0;
-      float from = 0;
-      float to = 0;
-      float y = 0;
-      float n = 0;
-      float cTo = 0;
-      float startZ = 0;
-      float endZ = 0;
-      float frequency = 0;
-
-      cout << "1- Non-Vertical Line" << endl
-           << "2- Vertical Line" << endl
-           << "3- Through Z" << endl
-           << "4- XYZ" << endl
-           << "command: ";
-      string command;
-      cin >> command;
-
-      if (command == "1")
-      {
-        cout << "Enter the gradient: ";
-        cin >> m;
-        cout << "Enter the y-intercept: ";
-        cin >> c;
-
-        cout << "Enter z: ";
-        cin >> zPosition;
-        cout << "Enter the EEF Phi: ";
-        cin >> eefPhiOrientation;
-        cout << "Enter the EEF Theta: ";
-        cin >> eefThetaOrientation;
-        cout << "Enter the Arm Angle: ";
-        cin >> armAngle;
-
-        cout << "Starting X: ";
-        cin >> from;
-        cout << "Ending X: ";
-        cin >> to;
-
-        cout << "Enter number of points: ";
-        cin >> n;
-
-        cout << "Frames per second (frequencey): ";
-        cin >> frequency;
-      }
-      else if (command == "2")
-      {
-        cout << "Enter the y-starting ";
-        cin >> c;
-        cout << "Enter the y-ending ";
-        cin >> cTo;
-
-        cout << "Enter z: ";
-        cin >> zPosition;
-        cout << "Enter the EEF Phi: ";
-        cin >> eefPhiOrientation;
-        cout << "Enter the EEF Theta: ";
-        cin >> eefThetaOrientation;
-        cout << "Enter the Arm Angle: ";
-        cin >> armAngle;
-
-        cout << "X: ";
-        cin >> from;
-
-        cout << "Enter number of points: ";
-        cin >> n;
-
-        cout << "Frames per second (frequencey): ";
-        cin >> frequency;
-      }
-      else if (command == "3")
-      {
-        cout << "Enter X: ";
-        cin >> xPosition;
-        cout << "Enter Y: ";
-        cin >> yPosition;
-
-        cout << "Enter starting Z: ";
-        cin >> startZ;
-
-        cout << "Enter ending Z: ";
-        cin >> endZ;
-
-        cout << "Enter the EEF Phi: ";
-        cin >> eefPhiOrientation;
-        cout << "Enter the EEF Theta: ";
-        cin >> eefThetaOrientation;
-        cout << "Enter the Arm Angle: ";
-        cin >> armAngle;
-
-        cout << "Enter number of points: ";
-        cin >> n;
-
-        cout << "Frames per second (frequencey): ";
-        cin >> frequency;
-      }
-      else if (command == "4")
-      {
-        float startingX, endingX, startingY, endingY, startingZ, endingZ;
-
-        cout << "Enter Starting X: ";
-        cin >> startingX;
-
-        cout << "Enter Ending X: ";
-        cin >> endingX;
-
-        cout << "Enter Starting Y: ";
-        cin >> startingY;
-
-        cout << "Enter Ending Y: ";
-        cin >> endingY;
-
-        cout << "Enter Starting Z: ";
-        cin >> startingZ;
-
-        cout << "Enter Ending Z: ";
-        cin >> endingZ;
-
-        cout << "Enter the EEF Phi: ";
-        cin >> eefPhiOrientation;
-        cout << "Enter the EEF Theta: ";
-        cin >> eefThetaOrientation;
-        cout << "Enter the Arm Angle: ";
-        cin >> armAngle;
-
-        cout << "Enter number of points: ";
-        cin >> n;
-
-        cout << "Frames per second (frequencey): ";
-        cin >> frequency;
-
-        file << frequency << endl;
-
-        for (int i = 0; i <= n; i++)
-        {
-          float currentX = startingX + (((endingX - startingX) / (float)n) * (float)i);
-          float currentY = startingY + (((endingY - startingY) / (float)n) * (float)i);
-          float currentZ = startingZ + (((endingZ - startingZ) / (float)n) * (float)i);
-
-          file << currentX << ", " << currentY << ", " << currentZ << ", " << eefPhiOrientation << ", "
-               << eefThetaOrientation << ", " << armAngle << endl;
-        }
-      }
-
-      if (command != "4")
-      {
-        file << frequency << endl;
-      }
-      if (command == "2")
-      {
-        for (int i = 0; i <= n; i++)
-        {
-          y = ((cTo - c) / n) * i + c;
-          if (i == n)
-          {
-            file << from << ", " << y << ", " << zPosition << ", " << eefPhiOrientation << ", " << eefThetaOrientation
-                 << ", " << armAngle;
-          }
-          else
-          {
-            file << from << ", " << y << ", " << zPosition << ", " << eefPhiOrientation << ", " << eefThetaOrientation
-                 << ", " << armAngle << endl;
-          }
-        }
-      }
-      else if (command == "1")
-      {
-        cout << "from: " << from << endl;
-        cout << "to: " << to << endl;
-
-        for (int j = 0; j < n; j++)
-        {
-          float x = from + (((to - from) / n) * j);
-          y = m * x + c;
-          file << x << ", " << y << ", " << zPosition << ", " << eefPhiOrientation << ", " << eefThetaOrientation
-               << ", " << armAngle << endl;
-        }
-
-        y = m * to + c;
-
-        file << to << ", " << y << ", " << zPosition << ", " << eefPhiOrientation << ", " << eefThetaOrientation << ", "
-             << armAngle;
-      }
-      else if (command == "3")
-      {
-        for (float z = startZ; (int)z != (int)endZ; z += ((endZ - startZ) / (float)n))
-        {
-          file << xPosition << ", " << yPosition << ", " << z << ", " << eefPhiOrientation << ", "
-               << eefThetaOrientation << ", " << armAngle << endl;
-        }
-
-        file << xPosition << ", " << yPosition << ", " << endZ << ", " << eefPhiOrientation << ", "
-             << eefThetaOrientation << ", " << armAngle;
-      }
-    }
-    else if (commandPicked == "5")
-    {
-      string fileName = "";
-      cout << "File name: " << endl;
-      cin >> fileName;
-      ifstream file;
-      file.open(fileName);
-
-      if (file.is_open())
-      {
-        while (!file.eof())
-        {
-          string filePath = "";
-          getline(file, filePath);
-
-          if (filePath.substr(0, 5) == "pause")
-          {
-            filePath.erase(0, 5);
-            ros::Rate rate = ros::Rate(1 / (stof(filePath)));
-            rate.sleep();
-            continue;
-          }
-
-          ifstream inputFile;
-          inputFile.open(filePath);
-
-          if (!inputFile.fail())
-          {
-            cout << "Success" << endl;
-            string line = "";
-            std_msgs::Float32MultiArray messageArray;
-            getline(inputFile, line);
-            ros::Rate rate = ros::Rate(stof(line));
-            while (!inputFile.eof())
-            {
-              cout << "here" << endl;
-              string line = "";
-              getline(inputFile, line);
-              line = removeSpaces(line);
-              vector<string> eefPosition = split(line, ",");
-              xPosition = stof(eefPosition.at(0)) + origin.at(0);
-              yPosition = stof(eefPosition.at(1)) + origin.at(1);
-              zPosition = stof(eefPosition.at(2)) + origin.at(2);
-              eefPhiOrientation = stof(eefPosition.at(3));
-              eefThetaOrientation = stof(eefPosition.at(4));
-              armAngle = stof(eefPosition.at(5));
-
-              jointAngles = new float[7];
-
-              if (line[1] == ':')
-              {
-                cout << "line: " << line << endl;
-                int jointAngleNumber = stoi(to_string(line[0] - '0'));
-                line = line.erase(0, 2);
-                jointAngles = new float[7];
-                jointAngles[0] = (float)phi1_old * 180 / M_PI;
-                jointAngles[1] = (float)phi2_old * 180 / M_PI;
-                jointAngles[2] = (float)phi3_old * 180 / M_PI;
-                jointAngles[3] = (float)phi4_old * 180 / M_PI;
-                jointAngles[4] = (float)phi5_old * 180 / M_PI;
-                jointAngles[5] = (float)phi6_old * 180 / M_PI;
-                jointAngles[6] = (float)phi7_old * 180 / M_PI;
-                jointAngles[jointAngleNumber - 1] = stof(line);
-                cout << "joint Angle Number: " << jointAngleNumber << endl
-                     << "joint Angle 0: " << jointAngles[0] << endl
-                     << "new joint Angle: " << stof(line) << endl;
-
-                messageArray.data.clear();
-                messageArray.data = {jointAngles[0], jointAngles[1], jointAngles[2], jointAngles[3],
-                                     jointAngles[4], jointAngles[5], jointAngles[6]};
-
-                delete[] jointAngles;
-
-                pub.publish(messageArray);
-
-                messageArray.data.clear();
-                messageArray.data = {x_before, y_before, z_before};
-
-                pub2.publish(messageArray);
-
-                ROS_INFO("Published new joint angles required");
-              }
-              else
-              {
-                x_before = xPosition;
-                y_before = yPosition;
-                z_before = zPosition;
-                fixForStick(xPosition, yPosition, zPosition, eefPhiOrientation, eefThetaOrientation);
-
-                if (inv_kin_kuka(xPosition, yPosition, zPosition, eefPhiOrientation, eefThetaOrientation, armAngle,
-                                 jointAngles))
-                {
-                  messageArray.data.clear();
-                  messageArray.data = {jointAngles[0], jointAngles[1], jointAngles[2], jointAngles[3],
-                                       jointAngles[4], jointAngles[5], jointAngles[6]};
-
-                  delete[] jointAngles;
-
-                  pub.publish(messageArray);
-
-                  messageArray.data.clear();
-                  messageArray.data = {x_before, y_before, z_before};
-
-                  pub2.publish(messageArray);
-
-                  ROS_INFO("Published new joint angles required");
-                  rate.sleep();
-                }
-              }
-            }
-          }
-          else
-          {
-            cout << "File: " << fileName << " does not exist" << endl;
-          };
-        }
-      }
-    }
-    else
-    {
-      cout << "File does not exist!" << endl;
-    }
-  }
-}
-
-void getVariablesFromConsole(double& x, double& y, double& z, double& eefPhi, double& eefTheta, double& armAngle)
-{
-  cout << "X position: ";
-  while (!(cin >> x))
-  {
-    cin.clear();
-    cin.ignore(numeric_limits<streamsize>::max(), '\n');
-    cout << "Value entered incorrect, please try again!" << endl;
-    cout << "X position: ";
-  }
-
-  cout << "Y position: ";
-  while (!(cin >> y))
-  {
-    cin.clear();
-    cin.ignore(numeric_limits<streamsize>::max(), '\n');
-    cout << "Value entered incorrect, please try again!" << endl;
-    cout << "Y position: ";
-  }
-
-  cout << "Z position: ";
-  while (!(cin >> z))
-  {
-    cin.clear();
-    cin.ignore(numeric_limits<streamsize>::max(), '\n');
-    cout << "Value entered incorrect, please try again!" << endl;
-    cout << "Z position: ";
-  }
-
-  cout << "End Effecetor Phi orientation angle (degrees): ";
-  while (!(cin >> eefPhi))
-  {
-    cin.clear();
-    cin.ignore(numeric_limits<streamsize>::max(), '\n');
-    cout << "Value entered incorrect, please try again!" << endl;
-    cout << "End Effecetor Phi orientation angle (degrees): ";
-  }
-
-  cout << "End Effecetor Theta orientation angle (degrees): ";
-  while (!(cin >> eefTheta))
-  {
-    cin.clear();
-    cin.ignore(numeric_limits<streamsize>::max(), '\n');
-    cout << "Value entered incorrect, please try again!" << endl;
-    cout << "End Effecetor Theta orientation angle (degrees): ";
-  }
-
-  cout << "Arm Angle: ";
-  while (!(cin >> armAngle))
-  {
-    cin.clear();
-    cin.ignore(numeric_limits<streamsize>::max(), '\n');
-    cout << "Value entered incorrect, please try again!" << endl;
-    cout << "Arm Angle: ";
-  }
-}
-
 bool inv_kin_kuka(double X, double Y, double Z, double eef_phi, double eef_theta, double armAng_in, float* jointAngles)
 {
   cout << "Commanded: \nPosition (X,Y,Z) [mm]: [" << X << ", " << Y << ", " << Z << "]" << endl;
@@ -971,8 +173,8 @@ bool inv_kin_kuka(double X, double Y, double Z, double eef_phi, double eef_theta
   else if (abs(phi1) >= phi1_max | abs(phi2) >= phi2_max | abs(phi3) >= phi3_max | abs(phi4) >= phi4_max |
            abs(phi5) >= phi5_max | abs(phi6) >= phi6_max | abs(phi7) >= phi7_max)
   {
-    armAng = adapt_elbow_position(X, Y, Z, eef_phi, eef_theta, armAng_in);
-    // return false;
+    // armAng = adapt_elbow_position(X, Y, Z, eef_phi, eef_theta, armAng_in);
+    return false;
   }
   // store calculated joint values for next round
   phi1_old = phi1;
@@ -1018,7 +220,7 @@ double adapt_elbow_position(double X, double Y, double Z, double eef_phi, double
          abs(phi5) >= phi5_max | abs(phi6) >= phi6_max | abs(phi7) >= phi7_max)
   {
     // use redundancy circle to avoid joint limits
-    armAng = armAng + 0.01;
+    armAng = armAng + 0.010;
     loop_count += 0.01;
 
     // calc new angle values
@@ -1155,8 +357,18 @@ void inv_kin_kuka_angle_calc(double X, double Y, double Z, double eef_phi, doubl
   /*This only works for d_se = b, otherwise use formula for general triangle (Tafelwerk P.26)*/
 
   // length of vector shoulder to center of circle
-  pc = Vector_division(psw, 2.0);
-  double pc_length = sqrt(pow(pc.at(0), 2) + pow(pc.at(1), 2) + pow(pc.at(2), 2));
+
+  double psw_length = sqrt(pow(psw.at(0), 2) + pow(psw.at(1), 2) + pow(psw.at(2), 2));
+
+  cout << "psw_length: " << psw_length << endl;
+
+  // double pc_length = sqrt(pow(pc.at(0), 2) + pow(pc.at(1), 2) + pow(pc.at(2), 2));
+
+  double pc_length = abs(420.0 * (pow(400.0, 2) - pow(420.0, 2) - pow(psw_length, 2)) / (840.0 * psw_length));
+
+  cout << "after: " << pc_length << endl;
+
+  pc = Vector_division(psw, (psw_length / pc_length));
 
   // circle radius
   double alpha = asin(pc_length / d_se);
@@ -1209,9 +421,11 @@ void inv_kin_kuka_angle_calc(double X, double Y, double Z, double eef_phi, doubl
   // phi2_2 = round(phi2_2*10000)/10000; //round to 2 decimal places
 
   // phi 3 ---------------------------------------------------------------------------------------
+
   phi3 = atan2(
       (pw.at(1) * cos(phi1) - pw.at(0) * sin(phi1)),
       (d_bs * sin(phi2) - pw.at(2) * sin(phi2) + pw.at(0) * cos(phi1) * cos(phi2) + pw.at(1) * cos(phi2) * sin(phi1)));
+
   phi3 = phi3 - pi;  // otherwise wrist position wrong!?
 
   // if (abs(phi3) >= 2*pi) //map rotation to 360° circle
@@ -1232,6 +446,7 @@ void inv_kin_kuka_angle_calc(double X, double Y, double Z, double eef_phi, doubl
   phi4 = acos((pw.at(2) * cos(phi2) - d_bs * cos(phi2) + pw.at(0) * cos(phi1) * sin(phi2) +
                pw.at(1) * sin(phi1) * sin(phi2) - d_se) /
               d_ew);
+
   if (abs(phi4) >= 2 * pi)  // map rotation to 360° circle
     phi4 = 2 * pi - phi4;
   // phi4 = round(phi4*10000)/10000; //round to 2 decimal places
@@ -1481,34 +696,4 @@ void die(char* s)
 {
   perror(s);
   exit(1);
-}
-
-vector<string> split(string s, string delimiter)
-{
-  size_t pos_start = 0, pos_end, delim_len = delimiter.length();
-  string token;
-  vector<string> res;
-
-  while ((pos_end = s.find(delimiter, pos_start)) != string::npos)
-  {
-    token = s.substr(pos_start, pos_end - pos_start);
-    pos_start = pos_end + delim_len;
-    res.push_back(token);
-  }
-
-  res.push_back(s.substr(pos_start));
-  return res;
-}
-
-string removeSpaces(string s)
-{
-  string newS = "";
-  for (int i = 0; i < s.length(); i++)
-  {
-    if (s[i] != ' ')
-    {
-      newS += s[i];
-    }
-  }
-  return newS;
 }

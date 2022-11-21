@@ -53,9 +53,6 @@ using namespace std;
 // for udp -----------------------------------------------------------------------------------------
 #define NPACK 10
 #define PORT 30000
-//#define SERVER "127.0.0.1"    //internal
-//#define SERVER "192.168.178.60" //desktop
-//#define SERVER "192.168.178.51" //dell
 #define SERVER "10.2.128.86"  // dell local
 //#define SERVER "10.2.4.53"
 #define BUFLEN 512  // Max length of buffer
@@ -338,67 +335,49 @@ int main(int argc, char* argv[])
         string line = "";
         std_msgs::Float32MultiArray messageArray;
         getline(inputFile, line);
-        ros::Rate rate = ros::Rate(stof(line));
+        vector<string> configLine = split(line, ",");
+        int numberOfPoints = stof(configLine.at(0));
+        int currentPoint = 1;
+        int currentRate = 5;
+        int maxRate = stof(configLine.at(1));
+        ros::Rate rate = ros::Rate(currentRate);
         while (!inputFile.eof())
         {
-          cout << "here" << endl;
+          // if (currentPoint <= 30)
+          // {
+          //   currentRate = maxRate * currentPoint / 30;
+          // }
+
+          // if (currentPoint > (numberOfPoints - 30) && currentPoint < 150)
+          // {
+          //   currentRate = maxRate - int(maxRate * float(currentPoint - (numberOfPoints - 30)) / 30.0);
+          // }
+          // cout << "rate: " << currentRate << endl;
+
+          // rate = ros::Rate(currentRate);
+
           string line = "";
           getline(inputFile, line);
           line = removeSpaces(line);
-          if (line[1] == ':')
-          {
-            cout << "line: " << line << endl;
-            int jointAngleNumber = stoi(to_string(line[0] - '0'));
-            line = line.erase(0, 2);
-            jointAngles = new float[7];
-            jointAngles[0] = (float)phi1_old * 180 / M_PI;
-            jointAngles[1] = (float)phi2_old * 180 / M_PI;
-            jointAngles[2] = (float)phi3_old * 180 / M_PI;
-            jointAngles[3] = (float)phi4_old * 180 / M_PI;
-            jointAngles[4] = (float)phi5_old * 180 / M_PI;
-            jointAngles[5] = (float)phi6_old * 180 / M_PI;
-            jointAngles[6] = (float)phi7_old * 180 / M_PI;
-            jointAngles[jointAngleNumber - 1] = stof(line);
-            cout << "joint Angle Number: " << jointAngleNumber << endl
-                 << "joint Angle 0: " << jointAngles[0] << endl
-                 << "new joint Angle: " << stof(line) << endl;
 
-            messageArray.data.clear();
-            messageArray.data = {jointAngles[0], jointAngles[1], jointAngles[2], jointAngles[3],
-                                 jointAngles[4], jointAngles[5], jointAngles[6]};
+          vector<string> eefPosition = split(line, ",");
+          xPosition = stof(eefPosition.at(0)) + origin.at(0);
+          yPosition = stof(eefPosition.at(1)) + origin.at(1);
+          zPosition = stof(eefPosition.at(2)) + origin.at(2);
+          eefPhiOrientation = stof(eefPosition.at(3));
+          eefThetaOrientation = stof(eefPosition.at(4));
+          armAngle = stof(eefPosition.at(5));
 
-            delete[] jointAngles;
+          jointAngles = new float[7];
 
-            pub.publish(messageArray);
+          x_before = xPosition;
+          y_before = yPosition;
+          z_before = zPosition;
 
-            messageArray.data.clear();
-            messageArray.data = {x_before, y_before, z_before};
-
-            pub2.publish(messageArray);
-
-            ROS_INFO("Published new joint angles required");
-          }
-          else
-          {
-            vector<string> eefPosition = split(line, ",");
-            xPosition = stof(eefPosition.at(0)) + origin.at(0);
-            yPosition = stof(eefPosition.at(1)) + origin.at(1);
-            zPosition = stof(eefPosition.at(2)) + origin.at(2);
-            eefPhiOrientation = stof(eefPosition.at(3));
-            eefThetaOrientation = stof(eefPosition.at(4));
-            armAngle = stof(eefPosition.at(5));
-
-            jointAngles = new float[7];
-
-            x_before = xPosition;
-            y_before = yPosition;
-            z_before = zPosition;
-
-            publishNewEEF(pub, pub2, xPosition, yPosition, zPosition, eefPhiOrientation, eefThetaOrientation, armAngle,
-                          jointAngles);
-
-            rate.sleep();
-          }
+          publishNewEEF(pub, pub2, xPosition, yPosition, zPosition, eefPhiOrientation, eefThetaOrientation, armAngle,
+                        jointAngles);
+          currentPoint++;
+          rate.sleep();
         }
       }
       else
