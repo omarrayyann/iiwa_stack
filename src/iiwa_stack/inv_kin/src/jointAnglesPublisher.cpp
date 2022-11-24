@@ -225,10 +225,10 @@ void fixForStick(float& xPosition, float& yPosition, float& zPosition, float eef
 }
 
 bool publishNewEEF(ros::Publisher jointAnglesPublisher, ros::Publisher xyzPublisher, float xPosition, float yPosition,
-                   float zPosition, float eefPhiOrientation, float eefThetaOrientation, float armAngle,
-                   float* jointAngles)
+                   float zPosition, float eefPhiOrientation, float eefThetaOrientation, float armAngle)
 {
   std_msgs::Float32MultiArray messageArray;
+  float* jointAngles = new float[7];
 
   messageArray.data = {xPosition, yPosition, zPosition};
 
@@ -247,6 +247,19 @@ bool publishNewEEF(ros::Publisher jointAnglesPublisher, ros::Publisher xyzPublis
       return false;
     }
 
+    // ofstream outputFile;
+    // outputFile.open("test.txt", ios::app);
+
+    // for (int i = 0; i < 7; i++)
+    // {
+    //   outputFile << jointAngles[i];
+    //   if (i != 6)
+    //   {
+    //     outputFile << ", ";
+    //   }
+    // }
+    // outputFile << endl;
+
     messageArray.data.clear();
     messageArray.data = {jointAngles[0], jointAngles[1], jointAngles[2], jointAngles[3],
                          jointAngles[4], jointAngles[5], jointAngles[6]};
@@ -260,10 +273,13 @@ bool publishNewEEF(ros::Publisher jointAnglesPublisher, ros::Publisher xyzPublis
   else
   {
     ROS_INFO("Could not come up with joint angles required");
+    delete[] jointAngles;
 
     return false;
   }
 }
+
+void checkIfAtPoint() {}
 
 void printCommands()
 {
@@ -278,26 +294,153 @@ void printCommands()
   cout << "Command: ";
 }
 
-float x_before, y_before, z_before;
+bool run = true;
+bool reachedSentPoint = false;
+bool started = false;
+vector<float> sentPoint;
+vector<float> origin;
+vector<vector<float>> points;
+int pointIndex = 0;
+ros::Publisher pub;
+ros::Publisher pub2;
+float tolerance;
+
+void commandCallback(const iiwa_msgs::CartesianPose& msg)
+{
+  cout << "hrer" << endl;
+  if (!started)
+  {
+    vector<float> vectorPoint = points.at(pointIndex);
+    pointIndex++;
+    started = true;
+    publishNewEEF(pub, pub2, vectorPoint.at(0), vectorPoint.at(1), vectorPoint.at(2), vectorPoint.at(3),
+                  vectorPoint.at(4), vectorPoint.at(5));
+    sentPoint = vectorPoint;
+
+    cout << "Sent Point: " << endl;
+    cout << sentPoint.at(0) << endl;
+    cout << sentPoint.at(1) << endl;
+
+    cout << "Current Point: " << endl;
+    cout << msg.poseStamped.pose.position.x * 1000 << endl;
+    cout << msg.poseStamped.pose.position.y * 1000 << endl;
+  }
+  else
+  {
+    float distance = pow(msg.poseStamped.pose.position.x * 1000.0 - sentPoint.at(0), 2.0) +
+                     pow(msg.poseStamped.pose.position.y * 1000.0 - sentPoint.at(1), 2.0);
+    distance = pow(distance, 0.5);
+    // cout << "Sent Point: " << endl;
+    // cout << sentPoint.at(0) << endl;
+    // cout << sentPoint.at(1) << endl;
+
+    // cout << "Current Point: " << endl;
+    // cout << msg.poseStamped.pose.position.x * 1000 << endl;
+    // cout << msg.poseStamped.pose.position.y * 1000 << endl;
+
+    cout << "Distance: " << distance << endl;
+    // distance = 10900000;
+    if (distance < tolerance)
+    {
+      if (pointIndex < points.size())
+      {
+        vector<float> vectorPoint = points.at(pointIndex);
+        pointIndex++;
+        cout << "Index: " << pointIndex << endl;
+        publishNewEEF(pub, pub2, vectorPoint.at(0), vectorPoint.at(1), vectorPoint.at(2), vectorPoint.at(3),
+                      vectorPoint.at(4), vectorPoint.at(5));
+        sentPoint = vectorPoint;
+      }
+    }
+    else
+    {
+      cout << "More than tolerance" << endl;
+    }
+  }
+}
+
+void preparePoints()
+{
+  points.clear();
+  string fileName = "";
+  cout << "File name: " << endl;
+  cin >> fileName;
+  ifstream file;
+  file.open(fileName);
+
+  if (!file.fail())
+  {
+    file >> tolerance;
+    while (!file.eof())
+    {
+      string filePath = "";
+      getline(file, filePath);
+
+      ifstream inputFile;
+      inputFile.open(filePath);
+
+      if (!inputFile.fail())
+      {
+        string line = "";
+        std_msgs::Float32MultiArray messageArray;
+        getline(inputFile, line);
+        while (!inputFile.eof())
+        {
+          string line = "";
+          getline(inputFile, line);
+          line = removeSpaces(line);
+          vector<string> eefPosition = split(line, ",");
+          float xPosition = stof(eefPosition.at(0)) + origin.at(0);
+          float yPosition = stof(eefPosition.at(1)) + origin.at(1);
+          float zPosition = stof(eefPosition.at(2)) + origin.at(2);
+          float eefPhiOrientation = stof(eefPosition.at(3));
+          float eefThetaOrientation = stof(eefPosition.at(4));
+          float armAngle = stof(eefPosition.at(5));
+          vector<float> v;
+          v.empty();
+          v.push_back(xPosition);
+          v.push_back(yPosition);
+          v.push_back(zPosition);
+          v.push_back(eefPhiOrientation);
+          v.push_back(eefThetaOrientation);
+          v.push_back(armAngle);
+          points.push_back(v);
+        }
+      }
+      else
+      {
+        cout << "File: " << fileName << " does not exist" << endl;
+      };
+    }
+  }
+  else
+  {
+    cout << "File: " << fileName << " does not exist" << endl;
+  };
+  cout << "Successfully prepared file!" << endl;
+}
 
 int main(int argc, char* argv[])
 {
-  vector<float> origin;
-  origin.push_back(0.0);
-  origin.push_back(0.0);
-  origin.push_back(0.0);
-
-  init_udp();
-
   ros::init(argc, argv, "jointAnglesPublisher");
   ros::NodeHandle n;
-  ros::Publisher pub = n.advertise<std_msgs::Float32MultiArray>("jointAnglesGoal", 100);
-  ros::Publisher pub2 = n.advertise<std_msgs::Float32MultiArray>("eefGoal", 100);
+  pub = n.advertise<std_msgs::Float32MultiArray>("jointAnglesGoal", 100);
+  pub2 = n.advertise<std_msgs::Float32MultiArray>("eefGoal", 100);
 
-  float* jointAngles;
+  origin.push_back(450.0);
+  origin.push_back(0.0);
+  origin.push_back(170.0);
   float xPosition, yPosition, zPosition, eefPhiOrientation, eefThetaOrientation, armAngle;
+  float* jointAngles;
 
-  bool run = true;
+  preparePoints();
+  init_udp();
+
+  ros::Subscriber sub = n.subscribe("/iiwa/state/CartesianPose", 1000, commandCallback);
+
+  ros::Rate loop_rate(100);
+
+  ros::spin();
 
   while (ros::ok() && run)
   {
@@ -319,7 +462,7 @@ int main(int argc, char* argv[])
       jointAngles = new float[7];
 
       publishNewEEF(pub, pub2, xPosition + origin.at(0), yPosition + origin.at(1), zPosition + origin.at(2),
-                    eefPhiOrientation, eefThetaOrientation, armAngle, jointAngles);
+                    eefPhiOrientation, eefThetaOrientation, armAngle);
     }
 
     else if (commandPicked == "2")
@@ -336,26 +479,10 @@ int main(int argc, char* argv[])
         std_msgs::Float32MultiArray messageArray;
         getline(inputFile, line);
         vector<string> configLine = split(line, ",");
-        int numberOfPoints = stof(configLine.at(0));
-        int currentPoint = 1;
-        int currentRate = 5;
-        int maxRate = stof(configLine.at(1));
-        ros::Rate rate = ros::Rate(currentRate);
+        int maxRate = stof(configLine.at(0));
+        ros::Rate rate = ros::Rate(maxRate);
         while (!inputFile.eof())
         {
-          // if (currentPoint <= 30)
-          // {
-          //   currentRate = maxRate * currentPoint / 30;
-          // }
-
-          // if (currentPoint > (numberOfPoints - 30) && currentPoint < 150)
-          // {
-          //   currentRate = maxRate - int(maxRate * float(currentPoint - (numberOfPoints - 30)) / 30.0);
-          // }
-          // cout << "rate: " << currentRate << endl;
-
-          // rate = ros::Rate(currentRate);
-
           string line = "";
           getline(inputFile, line);
           line = removeSpaces(line);
@@ -370,13 +497,8 @@ int main(int argc, char* argv[])
 
           jointAngles = new float[7];
 
-          x_before = xPosition;
-          y_before = yPosition;
-          z_before = zPosition;
+          publishNewEEF(pub, pub2, xPosition, yPosition, zPosition, eefPhiOrientation, eefThetaOrientation, armAngle);
 
-          publishNewEEF(pub, pub2, xPosition, yPosition, zPosition, eefPhiOrientation, eefThetaOrientation, armAngle,
-                        jointAngles);
-          currentPoint++;
           rate.sleep();
         }
       }
@@ -440,6 +562,7 @@ int main(int argc, char* argv[])
           }
 
           ifstream inputFile;
+
           inputFile.open(filePath);
 
           if (!inputFile.fail())
@@ -448,7 +571,7 @@ int main(int argc, char* argv[])
             string line = "";
             std_msgs::Float32MultiArray messageArray;
             getline(inputFile, line);
-            ros::Rate rate = ros::Rate(stof(line));
+            ros::Rate rate = ros::Rate(40);
             while (!inputFile.eof())
             {
               cout << "here" << endl;
@@ -465,45 +588,9 @@ int main(int argc, char* argv[])
 
               jointAngles = new float[7];
 
-              if (line[1] == ':')
-              {
-                cout << "line: " << line << endl;
-                int jointAngleNumber = stoi(to_string(line[0] - '0'));
-                line = line.erase(0, 2);
-                jointAngles = new float[7];
-                jointAngles[0] = (float)phi1_old * 180 / M_PI;
-                jointAngles[1] = (float)phi2_old * 180 / M_PI;
-                jointAngles[2] = (float)phi3_old * 180 / M_PI;
-                jointAngles[3] = (float)phi4_old * 180 / M_PI;
-                jointAngles[4] = (float)phi5_old * 180 / M_PI;
-                jointAngles[5] = (float)phi6_old * 180 / M_PI;
-                jointAngles[6] = (float)phi7_old * 180 / M_PI;
-                jointAngles[jointAngleNumber - 1] = stof(line);
-                cout << "joint Angle Number: " << jointAngleNumber << endl
-                     << "joint Angle 0: " << jointAngles[0] << endl
-                     << "new joint Angle: " << stof(line) << endl;
-
-                messageArray.data.clear();
-                messageArray.data = {jointAngles[0], jointAngles[1], jointAngles[2], jointAngles[3],
-                                     jointAngles[4], jointAngles[5], jointAngles[6]};
-
-                delete[] jointAngles;
-
-                pub.publish(messageArray);
-
-                messageArray.data.clear();
-                messageArray.data = {x_before, y_before, z_before};
-
-                pub2.publish(messageArray);
-
-                ROS_INFO("Published new joint angles required");
-              }
-              else
-              {
-                publishNewEEF(pub, pub2, xPosition, yPosition, zPosition, eefPhiOrientation, eefThetaOrientation,
-                              armAngle, jointAngles);
-                rate.sleep();
-              }
+              publishNewEEF(pub, pub2, xPosition, yPosition, zPosition, eefPhiOrientation, eefThetaOrientation,
+                            armAngle);
+              rate.sleep();
             }
           }
           else
@@ -553,7 +640,7 @@ int main(int argc, char* argv[])
         jointAngles = new float[7];
 
         publishNewEEF(pub, pub2, xPosition + origin.at(0), yPosition + origin.at(1), zPosition + origin.at(2),
-                      eefPhiOrientation, eefThetaOrientation, armAngle, jointAngles);
+                      eefPhiOrientation, eefThetaOrientation, armAngle);
       }
     }
 

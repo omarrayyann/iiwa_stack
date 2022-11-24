@@ -214,13 +214,13 @@ catkin_install_python(PROGRAMS src/eefVisualizer.py
 )
 
 add_executable(eefGoalPublisher src/eefGoalPublisher.cpp)
-add_executable(inverse_kinematics src/inverse_kinematics.cpp)
+# add_executable(inverse_kinematics src/inverse_kinematics.cpp)
 add_executable(jointAnglesPublisher src/jointAnglesPublisher.cpp)
 add_executable(jointAnglesSubscriber src/jointAnglesSubscriber.cpp)
 add_executable(jointAngleStateReader src/jointAngleStateReader.cpp)
 add_executable(CartesianPoseReader src/CartesianPoseReader.cpp)
 add_executable(pathsGenerator src/pathsGenerator.cpp)
-add_executable(joint_angles_publisher src/joint_angles_publisher.cpp)
+# add_executable(joint_angles_publisher src/joint_angles_publisher.cpp)
 
 target_link_libraries(eefGoalPublisher ${catkin_LIBRARIES})
 target_link_libraries(jointAnglesPublisher ${catkin_LIBRARIES})
