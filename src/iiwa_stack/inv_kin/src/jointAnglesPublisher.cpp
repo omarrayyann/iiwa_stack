@@ -47,6 +47,13 @@
 #include <geometry_msgs/PoseStamped.h>
 #include <geometry_msgs/Pose.h>
 #include <geometry_msgs/Point.h>
+#include "std_msgs/MultiArrayLayout.h"
+#include "std_msgs/MultiArrayDimension.h"
+#include "trajectory_msgs/JointTrajectory.h"
+#include "trajectory_msgs/JointTrajectoryPoint.h"
+#include "iiwa_msgs/JointPosition.h"
+#include "iiwa_msgs/JointQuantity.h"
+#include "std_msgs/Float32MultiArray.h"
 
 using namespace std;
 
@@ -230,10 +237,6 @@ bool publishNewEEF(ros::Publisher jointAnglesPublisher, ros::Publisher xyzPublis
   std_msgs::Float32MultiArray messageArray;
   float* jointAngles = new float[7];
 
-  messageArray.data = {xPosition, yPosition, zPosition};
-
-  xyzPublisher.publish(messageArray);
-
   // fixForStick(xPosition, yPosition, zPosition, eefPhiOrientation, eefThetaOrientation);
   if (inv_kin_kuka(xPosition, yPosition, zPosition, eefPhiOrientation, eefThetaOrientation, armAngle, jointAngles))
   {
@@ -261,11 +264,26 @@ bool publishNewEEF(ros::Publisher jointAnglesPublisher, ros::Publisher xyzPublis
     // outputFile << endl;
 
     messageArray.data.clear();
-    messageArray.data = {jointAngles[0], jointAngles[1], jointAngles[2], jointAngles[3],
-                         jointAngles[4], jointAngles[5], jointAngles[6]};
 
-    jointAnglesPublisher.publish(messageArray);
+    iiwa_msgs::JointPosition jointPosition;
+
+    iiwa_msgs::JointQuantity quantity;
+
+    quantity.a1 = jointAngles[0] * M_PI / 180;
+    quantity.a2 = jointAngles[1] * M_PI / 180;
+    quantity.a3 = jointAngles[2] * M_PI / 180;
+    quantity.a4 = jointAngles[3] * M_PI / 180;
+    quantity.a5 = jointAngles[4] * M_PI / 180;
+    quantity.a6 = jointAngles[5] * M_PI / 180;
+    quantity.a7 = jointAngles[6] * M_PI / 180;
+
+    jointPosition.position = quantity;
+
+    jointAnglesPublisher.publish(jointPosition);
     messageArray.data.clear();
+    messageArray.data = {xPosition, yPosition, zPosition};
+
+    xyzPublisher.publish(messageArray);
 
     delete[] jointAngles;
     return true;
@@ -424,7 +442,8 @@ int main(int argc, char* argv[])
 {
   ros::init(argc, argv, "jointAnglesPublisher");
   ros::NodeHandle n;
-  pub = n.advertise<std_msgs::Float32MultiArray>("jointAnglesGoal", 100);
+  pub = n.advertise<iiwa_msgs::JointPosition>("/iiwa/command/JointPosition", 100);
+
   pub2 = n.advertise<std_msgs::Float32MultiArray>("eefGoal", 100);
 
   origin.push_back(450.0);
@@ -433,14 +452,14 @@ int main(int argc, char* argv[])
   float xPosition, yPosition, zPosition, eefPhiOrientation, eefThetaOrientation, armAngle;
   float* jointAngles;
 
-  preparePoints();
-  init_udp();
+  // preparePoints();
+  // init_udp();
 
-  ros::Subscriber sub = n.subscribe("/iiwa/state/CartesianPose", 1000, commandCallback);
+  // ros::Subscriber sub = n.subscribe("/iiwa/state/CartesianPose", 1000, commandCallback);
 
-  ros::Rate loop_rate(100);
+  // ros::Rate loop_rate(100);
 
-  ros::spin();
+  // ros::spin();
 
   while (ros::ok() && run)
   {
@@ -571,7 +590,7 @@ int main(int argc, char* argv[])
             string line = "";
             std_msgs::Float32MultiArray messageArray;
             getline(inputFile, line);
-            ros::Rate rate = ros::Rate(40);
+            ros::Rate rate = ros::Rate(80);
             while (!inputFile.eof())
             {
               cout << "here" << endl;
