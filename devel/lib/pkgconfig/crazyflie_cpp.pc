@@ -1,0 +1,8 @@
+prefix=/home/cair1/github_packages/iiwa_stack/devel
+
+Name: crazyflie_cpp
+Description: Description of crazyflie_cpp
+Version: 0.0.1
+Cflags: -I/home/cair1/github_packages/iiwa_stack/src/my_crazyflie_ros/crazyflie_cpp/include
+Libs: -L${prefix}/lib -lcrazyflie_cpp
+Requires: 

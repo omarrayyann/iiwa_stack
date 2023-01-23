@@ -12,7 +12,9 @@ find_package(catkin REQUIRED COMPONENTS
   rospy
   std_msgs
   iiwa_msgs
+
 )
+
 
 
 
@@ -218,10 +220,14 @@ add_executable(eefGoalPublisher src/eefGoalPublisher.cpp)
 add_executable(jointAnglesPublisher src/jointAnglesPublisher.cpp)
 add_executable(jointAnglesSubscriber src/jointAnglesSubscriber.cpp)
 add_executable(jointAngleStateReader src/jointAngleStateReader.cpp)
+add_executable(kukaController src/kuka_controller.cpp)
 add_executable(CartesianPoseReader src/CartesianPoseReader.cpp)
 add_executable(pathsGenerator src/pathsGenerator.cpp)
+add_executable(surgical_robotics src/surgical_robotics.cpp)
 # add_executable(joint_angles_publisher src/joint_angles_publisher.cpp)
 
+target_link_libraries(surgical_robotics ${catkin_LIBRARIES})
+target_link_libraries(kukaController ${catkin_LIBRARIES})
 target_link_libraries(eefGoalPublisher ${catkin_LIBRARIES})
 target_link_libraries(jointAnglesPublisher ${catkin_LIBRARIES})
 target_link_libraries(jointAnglesSubscriber ${catkin_LIBRARIES})

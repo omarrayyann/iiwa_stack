@@ -13,7 +13,7 @@
  * --------------------------------------------------------------------------
  */
 
-//#include <QCoreApplication>
+// #include <QCoreApplication>
 #include <iostream>
 #include <stdio.h>
 #include <cmath>
@@ -61,7 +61,7 @@ using namespace std;
 #define NPACK 10
 #define PORT 30000
 #define SERVER "10.2.128.86"  // dell local
-//#define SERVER "10.2.4.53"
+// #define SERVER "10.2.4.53"
 #define BUFLEN 512  // Max length of buffer
 struct sockaddr_in si_other;
 int s, slen = sizeof(si_other);
@@ -162,6 +162,20 @@ void die(char* s);
 vector<string> split(string s, string delimiter);
 string removeSpaces(string s);
 
+#include <iostream>
+#include <conio.h>
+
+using namespace std;
+
+float x_controller = 0;
+float y_controller = 0;
+float z_controller = 0;
+float phi_controller = 0;
+float theta_controller = -180;
+float arm_controller = -218.4;
+
+float increment = 0.2;
+
 void getVariablesFromConsole(float& x, float& y, float& z, float& eefPhi, float& eefTheta, float& armAngle)
 {
   cout << "X position: ";
@@ -242,8 +256,9 @@ bool publishNewEEF(ros::Publisher jointAnglesPublisher, ros::Publisher xyzPublis
   {
     // safety
 
-    if (abs(jointAngles[0]) > 169 || abs(jointAngles[1]) > 119 || (jointAngles[2]) > 169 || abs(jointAngles[3]) > 119 ||
-        abs(jointAngles[4]) > 169 || abs(jointAngles[5]) > 119 || abs(jointAngles[6]) > 174)
+    if (abs(jointAngles[0]) > 165 || abs(jointAngles[1]) > 115 || abs(jointAngles[2]) > 165 ||
+        abs(jointAngles[3]) > 115 || abs(jointAngles[4]) > 165 || abs(jointAngles[5]) > 115 ||
+        abs(jointAngles[6]) > 170)
     {
       ROS_INFO("DID NOT SEND ANGLES - SAFETY");
 
@@ -297,7 +312,33 @@ bool publishNewEEF(ros::Publisher jointAnglesPublisher, ros::Publisher xyzPublis
   }
 }
 
-void checkIfAtPoint() {}
+bool goToZero(ros::Publisher jointAnglesPublisher)
+{
+  std_msgs::Float32MultiArray messageArray;
+  float* jointAngles = new float[7];
+
+  messageArray.data.clear();
+
+  iiwa_msgs::JointPosition jointPosition;
+
+  iiwa_msgs::JointQuantity quantity;
+
+  quantity.a1 = 0;
+  quantity.a2 = 0;
+  quantity.a3 = 0;
+  quantity.a4 = 0;
+  quantity.a5 = 0;
+  quantity.a6 = 0;
+  quantity.a7 = 0;
+
+  jointPosition.position = quantity;
+
+  jointAnglesPublisher.publish(jointPosition);
+  messageArray.data.clear();
+
+  delete[] jointAngles;
+  return true;
+}
 
 void printCommands()
 {
@@ -309,6 +350,10 @@ void printCommands()
   cout << "5: Control using keys" << endl;
   cout << "6: Edit Stick" << endl;
   cout << "7: Exit" << endl;
+  cout << "8: Mechanical Zero Position" << endl;
+  cout << "10: KUKA CONTROLLER" << endl;
+  cout << "11: Touch 3D (Place in Origin Before Starting)" << endl;
+
   cout << "Command: ";
 }
 
@@ -438,6 +483,63 @@ void preparePoints()
   cout << "Successfully prepared file!" << endl;
 }
 
+vector<float> touch_origin;
+
+float xPosition, yPosition, zPosition, eefPhiOrientation, eefThetaOrientation, armAngle;
+float* jointAngles;
+
+void moved_touch(const geometry_msgs::PoseStamped msg)
+{
+  float x_pos = msg.pose.position.x;
+  float y_pos = msg.pose.position.y;
+  float z_pos = msg.pose.position.z;
+
+  float x_ori = msg.pose.orientation.x * 180 / M_PI;
+  float y_ori = msg.pose.orientation.y * 180 / M_PI;
+  float z_ori = msg.pose.orientation.z * 180 / M_PI;
+  float w_ori = msg.pose.orientation.w * 180 / M_PI;
+
+  cout << "Position:" << endl;
+  cout << "x: " << x_pos << endl;
+  cout << "y: " << y_pos << endl;
+  cout << "z: " << z_pos << endl;
+
+  cout << "Orientation:" << endl;
+  cout << "x: " << x_ori << endl;
+  cout << "y: " << y_ori << endl;
+  cout << "z: " << z_ori << endl;
+  cout << "w: " << w_ori << endl;
+
+  if (touch_origin.empty())
+  {
+    touch_origin.push_back(x_pos);
+    touch_origin.push_back(y_pos);
+    touch_origin.push_back(z_pos);
+    cout << "set origin successfully" << endl;
+  }
+  else
+  {
+    float x_dif = x_pos - touch_origin.at(0);
+    float y_dif = y_pos - touch_origin.at(1);
+    float z_dif = z_pos - touch_origin.at(2);
+    x_dif *= 1000;
+    y_dif *= 1000;
+    z_dif *= 1000;
+
+    cout << "Position:" << endl;
+    cout << "x: " << x_pos << endl;
+    cout << "y: " << y_pos << endl;
+    cout << "z: " << z_pos << endl;
+
+    // x_dif /= 2;
+    // y_dif /= 2;
+    // z_dif /= 2;
+
+    publishNewEEF(pub, pub2, y_dif + origin.at(0), -x_dif + origin.at(1), z_dif + origin.at(2), eefPhiOrientation,
+                  eefThetaOrientation, armAngle);
+  }
+}
+
 int main(int argc, char* argv[])
 {
   ros::init(argc, argv, "jointAnglesPublisher");
@@ -449,17 +551,9 @@ int main(int argc, char* argv[])
   origin.push_back(450.0);
   origin.push_back(0.0);
   origin.push_back(170.0);
-  float xPosition, yPosition, zPosition, eefPhiOrientation, eefThetaOrientation, armAngle;
-  float* jointAngles;
 
   // preparePoints();
   // init_udp();
-
-  // ros::Subscriber sub = n.subscribe("/iiwa/state/CartesianPose", 1000, commandCallback);
-
-  // ros::Rate loop_rate(100);
-
-  // ros::spin();
 
   while (ros::ok() && run)
   {
@@ -467,14 +561,19 @@ int main(int argc, char* argv[])
     printCommands();
     cin >> commandPicked;
 
-    while (commandPicked != "1" && commandPicked != "2" && commandPicked != "3" && commandPicked != "4" &&
-           commandPicked != "5" && commandPicked != "6" && commandPicked != "7" && commandPicked != "8")
+    if (commandPicked == "11")
     {
-      printCommands();
-      cin >> commandPicked;
+      ros::Subscriber sub = n.subscribe("/phantom/pose", 1000, moved_touch);
+      ros::Rate loop_rate(100);
+      ros::spin();
     }
 
-    if (commandPicked == "1")
+    if (commandPicked == "8")
+    {
+      goToZero(pub);
+    }
+
+    else if (commandPicked == "1")
     {
       getVariablesFromConsole(xPosition, yPosition, zPosition, eefPhiOrientation, eefThetaOrientation, armAngle);
 
@@ -482,6 +581,68 @@ int main(int argc, char* argv[])
 
       publishNewEEF(pub, pub2, xPosition + origin.at(0), yPosition + origin.at(1), zPosition + origin.at(2),
                     eefPhiOrientation, eefThetaOrientation, armAngle);
+    }
+
+    else if (commandPicked == "10")
+    {
+      float increment = 1;
+      float increment_angles = 0.5;
+      bool fix_joint = false;
+
+      while (1)
+      {
+        char c = getch();
+        switch (c)
+        {
+          case 'w':
+            xPosition += increment;
+            break;
+          case 's':
+            xPosition -= increment;
+            break;
+          case 'a':
+            yPosition += increment;
+            break;
+          case 'd':
+            yPosition -= increment;
+            break;
+          case 't':
+            zPosition += increment;
+            break;
+          case 'g':
+            zPosition -= increment;
+            break;
+          case 'c':
+            eefThetaOrientation += increment;
+            break;
+          case 'v':
+            eefThetaOrientation -= increment;
+            break;
+          case 'b':
+            eefPhiOrientation += increment;
+            break;
+          case 'n':
+            eefPhiOrientation -= increment;
+            break;
+          case 'i':
+            zPosition += cos(-eefPhiOrientation);
+            yPosition += sin(-eefPhiOrientation) * sin(eefThetaOrientation - 180);
+            cout << eefThetaOrientation << endl;
+            xPosition += sin(-eefPhiOrientation) * cos(eefThetaOrientation - 180);
+            break;
+          case 'o':
+            zPosition -= cos(-eefPhiOrientation);
+            yPosition -= sin(-eefPhiOrientation) * sin(eefThetaOrientation - 180);
+            xPosition -= sin(-eefPhiOrientation) * cos(eefThetaOrientation - 180);
+            break;
+          default:
+            cout << c << endl;
+            break;
+        }
+
+        publishNewEEF(pub, pub2, xPosition + origin.at(0), yPosition + origin.at(1), zPosition + origin.at(2),
+                      eefPhiOrientation, eefThetaOrientation, armAngle);
+      }
     }
 
     else if (commandPicked == "2")
@@ -496,6 +657,8 @@ int main(int argc, char* argv[])
         cout << "Success" << endl;
         string line = "";
         std_msgs::Float32MultiArray messageArray;
+        float increment = 1;
+
         getline(inputFile, line);
         vector<string> configLine = split(line, ",");
         int maxRate = stof(configLine.at(0));
@@ -628,6 +791,8 @@ int main(int argc, char* argv[])
       cout << "Enter Parameter to change: ";
       cin >> indexToChange;
       indexToChange--;
+      publishNewEEF(pub, pub2, xPosition + origin.at(0), yPosition + origin.at(1), zPosition + origin.at(2),
+                    eefPhiOrientation, eefThetaOrientation, armAngle);
       bool run = true;
       string commandi = "";
       while (run)

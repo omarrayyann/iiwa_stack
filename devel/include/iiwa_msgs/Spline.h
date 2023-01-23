@@ -8,7 +8,7 @@
 
 #include <string>
 #include <vector>
-#include <map>
+#include <memory>
 
 #include <ros/types.h>
 #include <ros/serialization.h>
@@ -34,7 +34,7 @@ struct Spline_
 
 
 
-   typedef std::vector< ::iiwa_msgs::SplineSegment_<ContainerAllocator> , typename ContainerAllocator::template rebind< ::iiwa_msgs::SplineSegment_<ContainerAllocator> >::other >  _segments_type;
+   typedef std::vector< ::iiwa_msgs::SplineSegment_<ContainerAllocator> , typename std::allocator_traits<ContainerAllocator>::template rebind_alloc< ::iiwa_msgs::SplineSegment_<ContainerAllocator> >> _segments_type;
   _segments_type segments;
 
 
