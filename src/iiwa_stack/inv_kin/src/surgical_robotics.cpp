@@ -230,67 +230,15 @@ vector<vector<float>> points;
 int pointIndex = 0;
 ros::Publisher pub;
 ros::Publisher pub2;
+
+vector<float> startingPosition;
+
 float tolerance;
 
 vector<float> touch_origin;
 
 float xPosition, yPosition, zPosition, eefPhiOrientation, eefThetaOrientation, armAngle;
 float* jointAngles;
-
-void moved_touch(const geometry_msgs::PoseStamped msg)
-{
-  float x_pos = msg.pose.position.x;
-  float y_pos = msg.pose.position.y;
-  float z_pos = msg.pose.position.z;
-
-  float x_ori = msg.pose.orientation.x * 180 / M_PI;
-  float y_ori = msg.pose.orientation.y * 180 / M_PI;
-  float z_ori = msg.pose.orientation.z * 180 / M_PI;
-  float w_ori = msg.pose.orientation.w * 180 / M_PI;
-
-  // cout << "Position:" << endl;
-  // cout << "x: " << x_pos << endl;
-  // cout << "y: " << y_pos << endl;
-  // cout << "z: " << z_pos << endl;
-
-  // cout << "Orientation:" << endl;
-  // cout << "x: " << x_ori << endl;
-  // cout << "y: " << y_ori << endl;
-  // cout << "z: " << z_ori << endl;
-  // cout << "w: " << w_ori << endl;
-
-  // if (touch_origin.empty())
-  // {
-  //   touch_origin.push_back(x_pos);
-  //   touch_origin.push_back(y_pos);
-  //   touch_origin.push_back(z_pos);
-  //   cout << "Origin Set Successfully at:" << endl;
-  //   cout << "X: " << touch_origin.at(0) << endl;
-  //   cout << "Y: " << touch_origin.at(1) << endl;
-  //   cout << "Z: " << touch_origin.at(2) << endl;
-  // }
-  // else
-  // {
-  //   float x_dif = x_pos - touch_origin.at(0);
-  //   float y_dif = y_pos - touch_origin.at(1);
-  //   float z_dif = z_pos - touch_origin.at(2);
-  //   x_dif *= 1000;
-  //   y_dif *= 1000;
-  //   z_dif *= 1000;
-
-  //   // cout << "Position:" << endl;
-  //   // cout << "x: " << x_pos << endl;
-  //   // cout << "y: " << y_pos << endl;
-  //   // cout << "z: " << z_pos << endl;
-
-  //   // x_dif /= 2;
-  //   // y_dif /= 2;
-  //   // z_dif /= 2;
-
-  //   publishNewEEF(pub, pub2, y_dif + origin.at(0), -x_dif + origin.at(1), z_dif + origin.at(2), eefPhiOrientation,
-  //                 eefThetaOrientation, armAngle);
-  // }
-}
 
 void fixForStick(float& xPosition, float& yPosition, float& zPosition, float eefPhiOrientation,
                  float eefThetaOrientation)
@@ -305,6 +253,10 @@ void fixForStick(float& xPosition, float& yPosition, float& zPosition, float eef
 }
 
 vector<float> angles;
+
+float currentX = 0.0;
+float currentY = 0.0;
+float currentZ = 0.0;
 
 vector<vector<float>> mul(vector<vector<float>> a, vector<vector<float>> b)
 {
@@ -482,15 +434,70 @@ void moved_kuka(const iiwa_msgs::JointPosition msg)
 
   vector<vector<float>> answer = get_point(7);
 
-  cout << "\r   X: " << answer.at(0).at(3) << "   Y: " << answer.at(1).at(3) << "   Z: " << answer.at(2).at(3);
+  currentX = answer.at(0).at(3);
+  currentY = answer.at(1).at(3);
+  currentZ = answer.at(2).at(3);
+}
+
+void moved_touch(const geometry_msgs::PoseStamped msg)
+{
+  float x_pos = msg.pose.position.x;
+  float y_pos = msg.pose.position.y;
+  float z_pos = msg.pose.position.z;
+
+  float x_ori = msg.pose.orientation.x * 180 / M_PI;
+  float y_ori = msg.pose.orientation.y * 180 / M_PI;
+  float z_ori = msg.pose.orientation.z * 180 / M_PI;
+  float w_ori = msg.pose.orientation.w * 180 / M_PI;
+
+  // cout << "Position:" << endl;
+  // cout << "x: " << x_pos << endl;
+  // cout << "y: " << y_pos << endl;
+  // cout << "z: " << z_pos << endl;
+
+  // cout << "Orientation:" << endl;
+  // cout << "x: " << x_ori << endl;
+  // cout << "y: " << y_ori << endl;
+  // cout << "z: " << z_ori << endl;
+  // cout << "w: " << w_ori << endl;
+
+  if (touch_origin.empty())
+  {
+    touch_origin.push_back(x_pos);
+    touch_origin.push_back(y_pos);
+    touch_origin.push_back(z_pos);
+    cout << "   Touch 3D Starting Position Set as:" << endl;
+    cout << "   X: " << 1000 * touch_origin.at(0) << endl;
+    cout << "   Y: " << 1000 * touch_origin.at(1) << endl;
+    cout << "   Z: " << 1000 * touch_origin.at(2) << endl;
+    cout << endl << "   STARTED MOTION SUCCESSFULLY" << endl;
+  }
+  else
+  {
+    float x_dif = 1000 * (x_pos - touch_origin.at(0));
+    float y_dif = 1000 * (y_pos - touch_origin.at(1));
+    float z_dif = 1000 * (z_pos - touch_origin.at(2));
+
+    //   // cout << "Position:" << endl;
+    //   // cout << "x: " << x_pos << endl;
+    //   // cout << "y: " << y_pos << endl;
+    //   // cout << "z: " << z_pos << endl;
+
+    //   // x_dif /= 2;
+    //   // y_dif /= 2;
+    //   // z_dif /= 2;
+
+    publishNewEEF(pub, pub2, y_dif + startingPosition.at(0), -x_dif + startingPosition.at(1),
+                  z_dif + startingPosition.at(2), 0, -180, -218.4);
+  }
 }
 
 int main(int argc, char* argv[])
 {
   ros::init(argc, argv, "surgical_roboitcs");
   ros::NodeHandle n;
-  // pub = n.advertise<iiwa_msgs::JointPosition>("/iiwa/command/JointPosition", 100);
-  // pub2 = n.advertise<std_msgs::Float32MultiArray>("eefGoal", 100);
+  pub = n.advertise<iiwa_msgs::JointPosition>("/iiwa/command/JointPosition", 100);
+  pub2 = n.advertise<std_msgs::Float32MultiArray>("eefGoal", 100);
 
   origin.push_back(450.0);
   origin.push_back(0.0);
@@ -504,11 +511,28 @@ int main(int argc, char* argv[])
   cout << "    ___) | |_| | | | (_| | | (_| (_| | | |  _ < (_) | |_) | (_) | |_| | (__\\__ \\ " << endl;
   cout << "   |____/ \\__,_|_|  \\__, |_|\\___\\__,_|_| |_| \\_\\___/|_.__/ \\___/ \\__|_|\\___|___/ " << endl;
   cout << "                    |___/                                    1.0 by omar rayyan" << endl;
+  cout << endl << endl << endl;
+  cout << "   Move the KUKA robot to the initial position, hit enter to confirm position ";
+  ros::Subscriber sub2 = n.subscribe("/iiwa/state/JointPosition", 1000, moved_kuka);
 
-  cout << "Move the Stylus to the Starting Position, hit any key to confirm position " << endl;
   char c = getch();
+  ros::spinOnce();
+  startingPosition.push_back(currentX);
+  startingPosition.push_back(currentY);
+  startingPosition.push_back(currentZ);
+  cout << endl << endl << "   KUKA Starting Position Set as: " << endl;
 
-  ros::Subscriber sub2 = n.subscribe("/iiwa/state/JointPosition", 100, moved_kuka);
+  cout << "   X: " << startingPosition.at(0) << endl;
+  cout << "   Y: " << startingPosition.at(1) << endl;
+  cout << "   Z: " << startingPosition.at(2) << endl;
+
+  cout << endl;
+
+  cout << "   Move the Touch 3D Geomagic to the initial position, hit enter to START ";
+
+  c = getch();
+
+  cout << endl << endl;
 
   ros::Subscriber sub = n.subscribe("/phantom/pose", 1000, moved_touch);
   ros::Rate loop_rate(100);
@@ -1030,7 +1054,8 @@ vector<double> Elbow_Position(double armAng, double R)
   vector<double> vec_tmp_5 = Vector_addition(vec_tmp_4, pc);              // ... + pc
   vector<double> vec_tmp_6 = Vector_addition(vec_tmp_5, p_shoulder);      //... + p_shoudler
 
-  // cout << "Elbow position (X,Y,Z) [mm]: [" << vec_tmp_6.at(0) << " " << vec_tmp_6.at(1) << " " << vec_tmp_6.at(2) <<
+  // cout << "Elbow position (X,Y,Z) [mm]: [" << vec_tmp_6.at(0) << " " << vec_tmp_6.at(1) << " " << vec_tmp_6.at(2)
+  // <<
   // "]" << endl; cout << "-------------------------------------" << endl;
 
   return vec_tmp_6;
