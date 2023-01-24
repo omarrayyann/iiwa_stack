@@ -483,72 +483,7 @@ void moved_kuka(const iiwa_msgs::JointPosition msg)
   vector<vector<float>> answer = get_point(7);
 
   cout << "\r   X: " << answer.at(0).at(3) << "   Y: " << answer.at(1).at(3) << "   Z: " << answer.at(2).at(3);
-  // cout << "\r" << endl;
-  // cout << "\r" << endl;
-
-  // cout << "X: " << answer.at(0).at(3) << endl;
-  // cout << "Y: " << answer.at(1).at(3) << endl;
-  // cout << "Z: " << answer.at(2).at(3) << endl;
-
-  // cout << "X: " << answer.at(0).at(3) << endl;
-  // cout << "Y: " << answer.at(1).at(3) << endl;
-  // cout << "Z: " << answer.at(2).at(3) << endl;
 }
-
-// void moved_kuka(const iiwa_msgs::CartesianPose msg)
-// {
-//   // cout << "lol" << endl;
-
-//   float x = 1000 * msg.poseStamped.pose.position.x;
-//   float y = 1000 * msg.poseStamped.pose.position.y;
-//   float z = 1000 * msg.poseStamped.pose.position.z;
-
-//   float x_ori = msg.poseStamped.pose.orientation.x;
-//   float y_ori = msg.poseStamped.pose.orientation.y;
-//   float z_ori = msg.poseStamped.pose.orientation.z;
-//   float w_ori = msg.poseStamped.pose.orientation.w;
-
-//   tf::Quaternion q(x_ori, y_ori, z_ori, w_ori);
-//   tf::Matrix3x3 m(q);
-//   double roll, pitch, yaw;
-//   m.getRPY(roll, pitch, yaw);
-
-//   // roll *= 180 / M_PI;
-//   // pitch = pitch * 180 / M_PI;
-//   // yaw = yaw * 180 / M_PI;
-
-//   cout << "Orientation:" << endl;
-//   cout << "roll: " << roll << endl;
-//   cout << "pitch: " << pitch << endl;
-//   cout << "yaw: " << yaw << endl;
-
-//   stickLength = 487;
-
-//   cout << "BEFORE" << endl;
-//   cout << "X: " << x << endl;
-//   cout << "Y: " << y << endl;
-//   cout << "Z: " << z << endl;
-
-//   x = x + stickLength * sin(pitch) * cos(yaw);
-//   y = y + stickLength * sin(pitch) * cos(yaw);
-//   z = z + stickLength * -cos(pitch);
-
-//   cout << "AFTER" << endl;
-//   cout << "X: " << x << endl;
-//   cout << "Y: " << y << endl;
-//   cout << "Z: " << z << endl;
-
-//   // cout << "X: " << x << endl;
-//   // cout << "Y: " << y << endl;
-//   // cout << "Z: " << z << endl;
-//   // cout << "A: " << a << endl;
-//   // cout << "B: " << b << endl;
-//   // cout << "C: " << c << endl;
-//   // cout << "D: " << d << endl;
-//   // cout << "E: " << e1 << endl;
-
-//   // fixForStick(x, y, z, 0, -180);
-// }
 
 int main(int argc, char* argv[])
 {
@@ -556,8 +491,6 @@ int main(int argc, char* argv[])
   ros::NodeHandle n;
   // pub = n.advertise<iiwa_msgs::JointPosition>("/iiwa/command/JointPosition", 100);
   // pub2 = n.advertise<std_msgs::Float32MultiArray>("eefGoal", 100);
-
-  ros::Subscriber sub2 = n.subscribe("/iiwa/state/JointPosition", 100, moved_kuka);
 
   origin.push_back(450.0);
   origin.push_back(0.0);
@@ -570,14 +503,12 @@ int main(int argc, char* argv[])
   cout << "   \\___ \\| | | | '__/ _` | |/ __/ _` | | | |_) / _ \\| '_ \\ / _ \\| __| |/ __/ __| " << endl;
   cout << "    ___) | |_| | | | (_| | | (_| (_| | | |  _ < (_) | |_) | (_) | |_| | (__\\__ \\ " << endl;
   cout << "   |____/ \\__,_|_|  \\__, |_|\\___\\__,_|_| |_| \\_\\___/|_.__/ \\___/ \\__|_|\\___|___/ " << endl;
-  cout << "                    |___/   " << endl;
+  cout << "                    |___/                                    1.0 by omar rayyan" << endl;
 
-  cout << endl << endl;
+  cout << "Move the Stylus to the Starting Position, hit any key to confirm position " << endl;
+  char c = getch();
 
-  cout << "   Omar Rayyan - Version 1.0" << endl << endl << endl;
-
-  // cout << "Move the Stylus to the Starting Position, hit any key to confirm position " << endl;
-  // char c = getch();
+  ros::Subscriber sub2 = n.subscribe("/iiwa/state/JointPosition", 100, moved_kuka);
 
   ros::Subscriber sub = n.subscribe("/phantom/pose", 1000, moved_touch);
   ros::Rate loop_rate(100);
