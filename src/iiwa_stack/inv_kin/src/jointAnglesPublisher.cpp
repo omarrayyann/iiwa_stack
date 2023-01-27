@@ -117,14 +117,22 @@ double phi5_old = 0;
 double phi6_old = 0;
 double phi7_old = 0;
 
-// axis limit [rad]
-double phi1_max = 2.967055;  // 170°
-double phi2_max = 2.09435;   // 120°
-double phi3_max = 2.967055;  // 170°
-double phi4_max = 2.09435;   // 120°
-double phi5_max = 2.967055;  // 170°
-double phi6_max = 2.09435;   // 120°
-double phi7_max = 3.054325;  // 175°
+// // axis limit [rad]
+// double phi1_max = 2.967055;  // 170°
+// double phi2_max = 2.09435;   // 120°
+// double phi3_max = 2.967055;  // 170°
+// double phi4_max = 2.09435;   // 120°
+// double phi5_max = 2.967055;  // 170°
+// double phi6_max = 2.09435;   // 120°
+// double phi7_max = 3.054325;  // 175°
+
+double phi1_max = 2.875;  // 170°
+double phi2_max = 2.0;    // 120°
+double phi3_max = 2.875;  // 170°
+double phi4_max = 2.0;    // 120°
+double phi5_max = 2.875;  // 170°
+double phi6_max = 2.0;    // 120°
+double phi7_max = 2.96;   // 175°
 
 float stickLength = 0;
 
@@ -166,13 +174,6 @@ string removeSpaces(string s);
 #include <conio.h>
 
 using namespace std;
-
-float x_controller = 0;
-float y_controller = 0;
-float z_controller = 0;
-float phi_controller = 0;
-float theta_controller = -180;
-float arm_controller = -218.4;
 
 float increment = 0.2;
 
@@ -255,15 +256,14 @@ bool publishNewEEF(ros::Publisher jointAnglesPublisher, ros::Publisher xyzPublis
   if (inv_kin_kuka(xPosition, yPosition, zPosition, eefPhiOrientation, eefThetaOrientation, armAngle, jointAngles))
   {
     // safety
+    //  if (abs(jointAngles[0]) > 165 || abs(jointAngles[1]) > 115 || abs(jointAngles[2]) > 165 ||
+    //       abs(jointAngles[3]) > 115 || abs(jointAngles[4]) > 165 || abs(jointAngles[5]) > 115 ||
+    //       abs(jointAngles[6]) > 170)
+    //   {
+    //     ROS_INFO("DID NOT SEND ANGLES - SAFETY");
 
-    if (abs(jointAngles[0]) > 165 || abs(jointAngles[1]) > 115 || abs(jointAngles[2]) > 165 ||
-        abs(jointAngles[3]) > 115 || abs(jointAngles[4]) > 165 || abs(jointAngles[5]) > 115 ||
-        abs(jointAngles[6]) > 170)
-    {
-      ROS_INFO("DID NOT SEND ANGLES - SAFETY");
-
-      return false;
-    }
+    //     return false;
+    //   }
 
     // ofstream outputFile;
     // outputFile.open("test.txt", ios::app);
@@ -848,6 +848,14 @@ int main(int argc, char* argv[])
   }
 }
 
+float constrainAngle(float xz)
+{
+  double x = static_cast<double>(xz);
+  x = fmod(x, 360);
+  if (x < 0) x += 360;
+  return (float)x;
+}
+
 bool inv_kin_kuka(double X, double Y, double Z, double eef_phi, double eef_theta, double armAng_in, float* jointAngles)
 {
   cout << "Commanded: \nPosition (X,Y,Z) [mm]: [" << X << ", " << Y << ", " << Z << "]" << endl;
@@ -868,9 +876,11 @@ bool inv_kin_kuka(double X, double Y, double Z, double eef_phi, double eef_theta
   else if (abs(phi1) >= phi1_max | abs(phi2) >= phi2_max | abs(phi3) >= phi3_max | abs(phi4) >= phi4_max |
            abs(phi5) >= phi5_max | abs(phi6) >= phi6_max | abs(phi7) >= phi7_max)
   {
-    // armAng = adapt_elbow_position(X, Y, Z, eef_phi, eef_theta, armAng_in);
-    return false;
+    armAng = adapt_elbow_position(X, Y, Z, eef_phi, eef_theta, armAng_in);
+    // return false;
   }
+
+  armAngle = armAng;
   // store calculated joint values for next round
   phi1_old = phi1;
   phi2_old = phi2;

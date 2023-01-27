@@ -6,6 +6,8 @@
         "random": "cpp",
         "complex": "cpp",
         "array": "cpp",
-        "string_view": "cpp"
+        "string_view": "cpp",
+        "dense": "cpp",
+        "core": "cpp"
     }
 }

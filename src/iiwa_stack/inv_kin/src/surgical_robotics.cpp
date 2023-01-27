@@ -42,6 +42,10 @@
 #include <tf/tf.h>
 #include <geometry_msgs/Pose2D.h>
 
+#include "robot.cpp"
+#include "utils.h"
+#include "distance.cpp"
+
 using namespace std;
 
 // for udp -----------------------------------------------------------------------------------------
@@ -105,13 +109,21 @@ double phi6_old = 0;
 double phi7_old = 0;
 
 // axis limit [rad]
-double phi1_max = 2.967055;  // 170°
-double phi2_max = 2.09435;   // 120°
-double phi3_max = 2.967055;  // 170°
-double phi4_max = 2.09435;   // 120°
-double phi5_max = 2.967055;  // 170°
-double phi6_max = 2.09435;   // 120°
-double phi7_max = 3.054325;  // 175°
+// double phi1_max = 2.967055;  // 170°
+// double phi2_max = 2.09435;   // 120°
+// double phi3_max = 2.967055;  // 170°
+// double phi4_max = 2.09435;   // 120°
+// double phi5_max = 2.967055;  // 170°
+// double phi6_max = 2.09435;   // 120°
+// double phi7_max = 3.054325;  // 175°
+
+double phi1_max = 2.875;  // 170°
+double phi2_max = 2.0;    // 120°
+double phi3_max = 2.875;  // 170°
+double phi4_max = 2.0;    // 120°
+double phi5_max = 2.875;  // 170°
+double phi6_max = 2.0;    // 120°
+double phi7_max = 2.96;   // 175°
 
 float stickLength = 0;
 
@@ -257,6 +269,8 @@ vector<float> angles;
 float currentX = 0.0;
 float currentY = 0.0;
 float currentZ = 0.0;
+float currentPhi = 0.0;
+float currentTheta = 0.0;
 
 vector<vector<float>> mul(vector<vector<float>> a, vector<vector<float>> b)
 {
@@ -360,9 +374,9 @@ vector<vector<float>> get_point(int index)
 
   vector<vector<float>> T67 = {
 
-      {cos(angles.at(7)), 0, -sin(angles.at(7)), 0},
+      {cos(angles.at(7)), -sin(angles.at(7)), 0, 0},
 
-      {sin(angles.at(7)), 0, cos(angles.at(7)), 0},
+      {sin(angles.at(7)), cos(angles.at(7)), 0, 0},
 
       {0, 0, 1, d_wf},
 
@@ -420,6 +434,14 @@ vector<vector<float>> get_point(int index)
   return ans6;
 }
 
+float constrainAngle(float xz)
+{
+  double x = static_cast<double>(xz);
+  x = fmod(x, 360);
+  if (x < 0) x += 360;
+  return (float)x;
+}
+
 void moved_kuka(const iiwa_msgs::JointPosition msg)
 {
   angles.clear();
@@ -432,11 +454,76 @@ void moved_kuka(const iiwa_msgs::JointPosition msg)
   angles.push_back(msg.position.a6);
   angles.push_back(msg.position.a7);
 
-  vector<vector<float>> answer = get_point(7);
+  // Manipulator manip = Manipulator::createKukaIIWA();
+  // VectorXd q(7);
+  // q << msg.position.a1, msg.position.a2, msg.position.a3, msg.position.a4, msg.position.a5, msg.position.a6,
+  //     msg.position.a7;
 
-  currentX = answer.at(0).at(3);
-  currentY = answer.at(1).at(3);
-  currentZ = answer.at(2).at(3);
+  // ROS_INFO_STREAM(manip.fk(q).htmTool);
+
+  vector<vector<float>> eef = get_point(7);
+  vector<vector<float>> wrist = get_point(6);
+
+  currentX = eef.at(0).at(3);
+  currentY = eef.at(1).at(3);
+  currentZ = eef.at(2).at(3);
+
+  // cout << "EEF: " << endl;
+  // for (int i = 0; i < 4; i++)
+  // {
+  //   for (int j = 0; j < 4; j++)
+  //   {
+  //     cout << eef.at(i).at(j) << " ";a
+  //   }
+  //   cout << endl;
+  // }
+  // cout << "Wrist: " << endl;
+  // for (int i = 0; i < 4; i++)
+  // {
+  //   for (int j = 0; j < 4; j++)
+  //   {
+  //     cout << wrist.at(i).at(j) << " ";
+  //   }
+  //   cout << endl;
+  // }
+
+  float x_diff = (eef.at(0).at(3) - wrist.at(0).at(3)) / d_wf;
+  float z_diff = (eef.at(2).at(3) - wrist.at(2).at(3)) / d_wf;
+
+  // cout << "X Dif: " << x_diff << endl;
+  // cout << "Z Dif: " << z_diff << endl;
+
+  float theta = 0.5 * (asin(x_diff) + acos(z_diff)) * 180 / M_PI;
+  float phi = 0.5 * (asin(x_diff) - acos(z_diff)) * 180 / M_PI;
+  currentPhi = phi;
+  currentTheta = theta;
+  cout << "THETA: " << theta << endl;
+  cout << "PHI: " << phi << endl;
+}
+
+void moved_kuka_angle(const iiwa_msgs::CartesianPose msg)
+{
+  float x_ori = msg.poseStamped.pose.orientation.x;
+  float y_ori = msg.poseStamped.pose.orientation.y;
+  float z_ori = msg.poseStamped.pose.orientation.z;
+  float w_ori = msg.poseStamped.pose.orientation.w;
+
+  tf::Quaternion q(x_ori, y_ori, z_ori, w_ori);
+  tf::Matrix3x3 m(q);
+  double roll, pitch, yaw;
+  m.getRPY(roll, pitch, yaw);
+
+  roll *= 180 / M_PI;
+  pitch = pitch * 180 / M_PI;
+  yaw = yaw * 180 / M_PI;
+
+  float Phi_Final = yaw + 180;
+  float Theta_Final = pitch + 180;
+
+  // cout << "Orientation :" << endl;
+  // cout << "Phi_Final: " << Phi_Final << endl;
+  // cout << "Theta_Final: " << Theta_Final << endl;
+  // cout << "yaw: " << yaw + 180 << endl;
 }
 
 void moved_touch(const geometry_msgs::PoseStamped msg)
@@ -455,17 +542,38 @@ void moved_touch(const geometry_msgs::PoseStamped msg)
   // cout << "y: " << y_pos << endl;
   // cout << "z: " << z_pos << endl;
 
-  // cout << "Orientation:" << endl;
-  // cout << "x: " << x_ori << endl;
-  // cout << "y: " << y_ori << endl;
-  // cout << "z: " << z_ori << endl;
-  // cout << "w: " << w_ori << endl;
+  tf::Quaternion q(x_ori, y_ori, z_ori, w_ori);
+  tf::Matrix3x3 m(q);
+  double roll, pitch, yaw;
+  m.getRPY(roll, pitch, yaw);
 
+  // yaw *= 180 / M_PI;
+  // pitch *= 180 / M_PI;
+  // roll *= 180 / M_PI;
+
+  float xko = acos(cos(yaw) * cos(pitch)) * 180 / M_PI;
+  float yko = acos(sin(yaw) * cos(pitch)) * 180 / M_PI;
+  float zko = acos(sin(pitch)) * 180 / M_PI;
+
+  float Theta_Final = (roll * 180 / M_PI) - 90;
+
+  float Phi_Final = pitch + 180;
+
+  cout << "Orientation:" << endl;
+  cout << "roll: " << roll << endl;
+  cout << "pitch: " << pitch << endl;
+  cout << "yaw: " << yaw << endl;
+  cout << "xko: " << xko << endl;
+  cout << "yko: " << yko << endl;
+  cout << "zko: " << zko << endl;
+  cout << "possible pitch: " << Phi_Final << endl;
+  cout << "THETA: " << Theta_Final << endl;
   if (touch_origin.empty())
   {
     touch_origin.push_back(x_pos);
     touch_origin.push_back(y_pos);
     touch_origin.push_back(z_pos);
+    touch_origin.push_back(roll);
     cout << "   Touch 3D Starting Position Set as:" << endl;
     cout << "   X: " << 1000 * touch_origin.at(0) << endl;
     cout << "   Y: " << 1000 * touch_origin.at(1) << endl;
@@ -474,9 +582,11 @@ void moved_touch(const geometry_msgs::PoseStamped msg)
   }
   else
   {
-    float x_dif = 1000 * (x_pos - touch_origin.at(0));
-    float y_dif = 1000 * (y_pos - touch_origin.at(1));
-    float z_dif = 1000 * (z_pos - touch_origin.at(2));
+    float x_dif = 1000 * (x_pos - touch_origin.at(0)) / 5;
+    float y_dif = 1000 * (y_pos - touch_origin.at(1)) / 5;
+    float z_dif = 1000 * (z_pos - touch_origin.at(2)) / 5;
+
+    float roll_diff = ((roll - touch_origin.at(3))) / 5;
 
     //   // cout << "Position:" << endl;
     //   // cout << "x: " << x_pos << endl;
@@ -487,8 +597,8 @@ void moved_touch(const geometry_msgs::PoseStamped msg)
     //   // y_dif /= 2;
     //   // z_dif /= 2;
 
-    publishNewEEF(pub, pub2, y_dif + startingPosition.at(0), -x_dif + startingPosition.at(1),
-                  z_dif + startingPosition.at(2), 0, -180, -218.4);
+    // publishNewEEF(pub, pub2, y_dif + startingPosition.at(0), -x_dif + startingPosition.at(1),
+    //               z_dif + startingPosition.at(2), 0, -180, -218.4);
   }
 }
 
@@ -497,7 +607,7 @@ int main(int argc, char* argv[])
   ros::init(argc, argv, "surgical_roboitcs");
   ros::NodeHandle n;
   pub = n.advertise<iiwa_msgs::JointPosition>("/iiwa/command/JointPosition", 100);
-  pub2 = n.advertise<std_msgs::Float32MultiArray>("eefGoal", 100);
+  pub2 = n.advertise<std_msgs::Float32MultiArray>("eefGoals", 100);
 
   origin.push_back(450.0);
   origin.push_back(0.0);
@@ -514,17 +624,23 @@ int main(int argc, char* argv[])
   cout << endl << endl << endl;
   cout << "   Move the KUKA robot to the initial position, hit enter to confirm position ";
   ros::Subscriber sub2 = n.subscribe("/iiwa/state/JointPosition", 1000, moved_kuka);
+  ros::Subscriber sub3 = n.subscribe("/iiwa/state/CartesianPose", 1000, moved_kuka_angle);
 
   char c = getch();
   ros::spinOnce();
   startingPosition.push_back(currentX);
   startingPosition.push_back(currentY);
   startingPosition.push_back(currentZ);
+  startingPosition.push_back(currentPhi);
+  startingPosition.push_back(currentTheta);
+
   cout << endl << endl << "   KUKA Starting Position Set as: " << endl;
 
   cout << "   X: " << startingPosition.at(0) << endl;
   cout << "   Y: " << startingPosition.at(1) << endl;
   cout << "   Z: " << startingPosition.at(2) << endl;
+  cout << "   Phi: " << startingPosition.at(3) << endl;
+  cout << "   Theta: " << startingPosition.at(4) << endl;
 
   cout << endl;
 
@@ -559,8 +675,8 @@ bool inv_kin_kuka(double X, double Y, double Z, double eef_phi, double eef_theta
   else if (abs(phi1) >= phi1_max | abs(phi2) >= phi2_max | abs(phi3) >= phi3_max | abs(phi4) >= phi4_max |
            abs(phi5) >= phi5_max | abs(phi6) >= phi6_max | abs(phi7) >= phi7_max)
   {
-    // armAng = adapt_elbow_position(X, Y, Z, eef_phi, eef_theta, armAng_in);
-    return false;
+    armAng = adapt_elbow_position(X, Y, Z, eef_phi, eef_theta, armAng_in);
+    // return false;
   }
   // store calculated joint values for next round
   phi1_old = phi1;
