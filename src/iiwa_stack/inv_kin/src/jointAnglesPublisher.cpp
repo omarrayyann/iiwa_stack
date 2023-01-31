@@ -920,6 +920,7 @@ double adapt_elbow_position(double X, double Y, double Z, double eef_phi, double
   double armAng_2 = armAng;
   double loop_count = 0;
 
+  cout << "ADAPTINGGGG" << endl;
   // first solution
   while (abs(phi1) >= phi1_max | abs(phi2) >= phi2_max | abs(phi3) >= phi3_max | abs(phi4) >= phi4_max |
          abs(phi5) >= phi5_max | abs(phi6) >= phi6_max | abs(phi7) >= phi7_max)
@@ -1044,9 +1045,9 @@ void inv_kin_kuka_angle_calc(double X, double Y, double Z, double eef_phi, doubl
 
   // vector base to wrist, global position of wrist
   pw = Vector_substraction(vec_eef, vec_wf);
-  // cout << "Vec_eef: [" << vec_eef.at(0) << " " << vec_eef.at(1) << " " << vec_eef.at(2) << "]" << endl;
-  // cout << "vec_wf: [" << vec_wf.at(0) << " " << vec_wf.at(1) << " " << vec_wf.at(2) << "]" << endl;
-  // cout << "Wrist position (X,Y,Z) [mm]: [" << pw.at(0) << " " << pw.at(1) << " " << pw.at(2) << "]" << endl;
+  cout << "Vec_eef: [" << vec_eef.at(0) << " " << vec_eef.at(1) << " " << vec_eef.at(2) << "]" << endl;
+  cout << "vec_wf: [" << vec_wf.at(0) << " " << vec_wf.at(1) << " " << vec_wf.at(2) << "]" << endl;
+  cout << "Wrist position (X,Y,Z) [mm]: [" << pw.at(0) << " " << pw.at(1) << " " << pw.at(2) << "]" << endl;
 
   // vector shoulder to wrist
   psw = Vector_substraction(pw, p_shoulder);

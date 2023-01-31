@@ -488,14 +488,14 @@ void moved_kuka(const iiwa_msgs::JointPosition msg)
   // }
 
   float x_diff = (eef.at(0).at(3) - wrist.at(0).at(3)) / d_wf;
+  float y_diff = (eef.at(1).at(3) - wrist.at(1).at(3)) / d_wf;
   float z_diff = (eef.at(2).at(3) - wrist.at(2).at(3)) / d_wf;
 
   // cout << "X Dif: " << x_diff << endl;
   // cout << "Z Dif: " << z_diff << endl;
 
-  float theta = 0.5 * (asin(x_diff) + acos(z_diff)) * 180 / M_PI;
-  float phi = 0.5 * (asin(x_diff) - acos(z_diff)) * 180 / M_PI;
-  currentPhi = phi;
+  float theta = acos(z_diff) * 180 / M_PI;
+  float phi = atan(y_diff / x_diff);
   currentTheta = theta;
   cout << "THETA: " << theta << endl;
   cout << "PHI: " << phi << endl;
@@ -519,6 +519,10 @@ void moved_kuka_angle(const iiwa_msgs::CartesianPose msg)
 
   float Phi_Final = yaw + 180;
   float Theta_Final = pitch + 180;
+  cout << "Position :" << endl;
+  cout << "x: " << msg.poseStamped.pose.position.x << endl;
+  cout << "y: " << msg.poseStamped.pose.position.y * 1000 << endl;
+  cout << "z: " << msg.poseStamped.pose.position.z * 1000 << endl;
 
   // cout << "Orientation :" << endl;
   // cout << "Phi_Final: " << Phi_Final << endl;
@@ -559,15 +563,15 @@ void moved_touch(const geometry_msgs::PoseStamped msg)
 
   float Phi_Final = pitch + 180;
 
-  cout << "Orientation:" << endl;
-  cout << "roll: " << roll << endl;
-  cout << "pitch: " << pitch << endl;
-  cout << "yaw: " << yaw << endl;
-  cout << "xko: " << xko << endl;
-  cout << "yko: " << yko << endl;
-  cout << "zko: " << zko << endl;
-  cout << "possible pitch: " << Phi_Final << endl;
-  cout << "THETA: " << Theta_Final << endl;
+  // cout << "Orientation:" << endl;
+  // cout << "roll: " << roll << endl;
+  // cout << "pitch: " << pitch << endl;
+  // cout << "yaw: " << yaw << endl;
+  // cout << "xko: " << xko << endl;
+  // cout << "yko: " << yko << endl;
+  // cout << "zko: " << zko << endl;
+  // cout << "possible pitch: " << Phi_Final << endl;
+  // cout << "THETA: " << Theta_Final << endl;
   if (touch_origin.empty())
   {
     touch_origin.push_back(x_pos);
