@@ -494,11 +494,25 @@ void moved_kuka(const iiwa_msgs::JointPosition msg)
   // cout << "X Dif: " << x_diff << endl;
   // cout << "Z Dif: " << z_diff << endl;
 
-  float theta = acos(z_diff) * 180 / M_PI;
-  float phi = atan(y_diff / x_diff);
-  currentTheta = theta;
+  float phi = atan(y_diff / x_diff) * 180 / M_PI;
+
+  float a = asin(z_diff / (d_wf * sin(phi * M_PI / 180)));
+  float theta;
+
+  if (a > 0)
+  {
+    theta = acos(z_diff) * 180 / M_PI;
+  }
+  else
+  {
+    theta = -acos(z_diff) * 180 / M_PI;
+  }
+
   cout << "THETA: " << theta << endl;
   cout << "PHI: " << phi << endl;
+  cout << "X: " << currentX << endl;
+  cout << "Y: " << currentY << endl;
+  cout << "Z: " << currentZ << endl;
 }
 
 void moved_kuka_angle(const iiwa_msgs::CartesianPose msg)
@@ -519,10 +533,9 @@ void moved_kuka_angle(const iiwa_msgs::CartesianPose msg)
 
   float Phi_Final = yaw + 180;
   float Theta_Final = pitch + 180;
-  cout << "Position :" << endl;
-  cout << "x: " << msg.poseStamped.pose.position.x << endl;
-  cout << "y: " << msg.poseStamped.pose.position.y * 1000 << endl;
-  cout << "z: " << msg.poseStamped.pose.position.z * 1000 << endl;
+  // cout << "x: " << msg.poseStamped.pose.position.x * 1000 << endl;
+  // cout << "y: " << msg.poseStamped.pose.position.y * 1000 << endl;
+  // cout << "z: " << msg.poseStamped.pose.position.z * 1000 << endl;
 
   // cout << "Orientation :" << endl;
   // cout << "Phi_Final: " << Phi_Final << endl;

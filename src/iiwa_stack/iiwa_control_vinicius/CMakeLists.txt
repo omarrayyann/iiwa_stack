@@ -142,7 +142,7 @@ include_directories(
 # add_executable(${PROJECT_NAME}_node src/iiwa_control_vinicius_node.cpp)
 
 add_executable(${PROJECT_NAME}_node src/velocity_control.cpp)
-
+add_executable(accel src/acceleration_control.cpp)
 
 
 ##add_executable(robot_kinematics src/robot_kinematics.cpp)
@@ -161,7 +161,9 @@ add_executable(${PROJECT_NAME}_node src/velocity_control.cpp)
  target_link_libraries(${PROJECT_NAME}_node
    ${catkin_LIBRARIES}
  )
-
+ target_link_libraries(accel
+   ${catkin_LIBRARIES}
+ )
 #############
 ## Install ##
 #############

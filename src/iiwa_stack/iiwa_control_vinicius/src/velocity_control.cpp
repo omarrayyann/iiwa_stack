@@ -14,9 +14,9 @@
 // #include <trajectory_msgs/JointTrajectoryPoint.h>
 #include <string>
 
-#include "utils.cpp"
-#include "distance.cpp"
-#include "robot.cpp"
+#include "libraries/utils.cpp"
+#include "libraries/distance.cpp"
+#include "libraries/robot.cpp"
 
 // #include "geometry_msgs/Twist.h"
 // #include "geometry_msgs/Pose.h"
@@ -88,8 +88,8 @@ int main(int argc, char** argv)
   jointPub = n.advertise<iiwa_msgs::JointPosition>("/iiwa/command/JointPosition", 100);
   velPub = n.advertise<iiwa_msgs::JointVelocity>("/iiwa/command/JointVelocity", 100);
 
-  ros::Subscriber qSub = n.subscribe("/iiwa/state/JointPosition", 100, callbackq);
-  ros::Subscriber qdotSub = n.subscribe("/iiwa/state/JointVelocity", 100, callbackdotq);
+  ros::Subscriber qSub = n.subscribe("/iiwa/state/JointPosition", 1, callbackq);
+  ros::Subscriber qdotSub = n.subscribe("/iiwa/state/JointVelocity", 1, callbackdotq);
 
   // Create the environment variables
   Matrix4d htmTg;
@@ -107,7 +107,7 @@ int main(int argc, char** argv)
 
   obstacles = {wall1, wall2, wall3, wall4};
 
-  htmTg = Utils::trn(0.5, -0.3, 0.7) * Utils::rotx(M_PI / 2);  // y = -0.2
+  htmTg = Utils::trn(0.5, -0.2, 0.7) * Utils::rotx(M_PI / 2);  // y = -0.2
 
   // Initialize log file
   ofstream file;
@@ -143,7 +143,7 @@ int main(int argc, char** argv)
   ConstControlResult ccr;
   ConstControlParam param;
   double t;
-  double frq = 10;  // 10
+  double frq = 100;  // 10 //30
   double dt = 1 / frq;
   double dist;
   double kgain = 0.35;  // 0.3
@@ -154,7 +154,7 @@ int main(int argc, char** argv)
 
   qdotRealSmoothed = VectorXd::Zero(7);
 
-  while (t < 60)
+  while (t < 5)
   {
     param.kpos = 0.5 * min(t / 4.0, 1.0);
     param.kori = 0.2 * min(t / 4.0, 1.0);
@@ -183,6 +183,8 @@ int main(int argc, char** argv)
 
   bool reachedZeroPosition = false;
 
+  param.h = 0.005;
+
   while (ros::ok())
   {
     ros::spinOnce();
@@ -190,7 +192,7 @@ int main(int argc, char** argv)
     if (!reachedZeroPosition)
     {
       // Send the robot to the zero mechanical position
-      ROS_INFO_STREAM("Sending the robot to mechanical zero...");
+      ROS_INFO_STREAM("Sending the robot to MECH zero...");
 
       qROS.position.a1 = 0;
       qROS.position.a2 = 0;
@@ -230,7 +232,7 @@ int main(int argc, char** argv)
         }
         else
         {
-          qdot = kgain * ccr.action;
+          qdot = 10 * ccr.action;
 
           histdotq.push_back(qdot);
 
@@ -250,15 +252,19 @@ int main(int argc, char** argv)
           qdotROS.velocity.a6 = qdot[5];
           qdotROS.velocity.a7 = qdot[6];
 
-          velPub.publish(qdotROS);
+          // velPub.publish(qdotROS);
+
+          VectorXd nextq = q + qdot * dt;
 
           // Position controllerq =
-          // qROS.position.a3 = nextq[2];
-          // qROS.position.a4 = nextq[3];
-          // qROS.position.a5 = nextq[4];
-          // qROS.position.a6 = nextq[5];
-          // qROS.position.a7 = nextq[6];
-          // jointPub.publish(qROS);
+          qROS.position.a1 = nextq[0];
+          qROS.position.a2 = nextq[1];
+          qROS.position.a3 = nextq[2];
+          qROS.position.a4 = nextq[3];
+          qROS.position.a5 = nextq[4];
+          qROS.position.a6 = nextq[5];
+          qROS.position.a7 = nextq[6];
+          jointPub.publish(qROS);
 
           // Print messages
 

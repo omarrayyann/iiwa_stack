@@ -877,10 +877,11 @@ bool inv_kin_kuka(double X, double Y, double Z, double eef_phi, double eef_theta
            abs(phi5) >= phi5_max | abs(phi6) >= phi6_max | abs(phi7) >= phi7_max)
   {
     armAng = adapt_elbow_position(X, Y, Z, eef_phi, eef_theta, armAng_in);
+    armAngle = armAng;
+
     // return false;
   }
 
-  armAngle = armAng;
   // store calculated joint values for next round
   phi1_old = phi1;
   phi2_old = phi2;
