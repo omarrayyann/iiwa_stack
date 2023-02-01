@@ -228,6 +228,8 @@ public:
 
   Manipulator(int no);
 
+  static Manipulator createGeoTouch();
+
   static Manipulator createKukaKR5();
 
   static Manipulator createKukaIIWA();

@@ -41,6 +41,7 @@
 #include "std_msgs/Float32MultiArray.h"
 #include <tf/tf.h>
 #include <geometry_msgs/Pose2D.h>
+#include <sensor_msgs/JointState.h>
 
 #include "robot.cpp"
 #include "utils.h"
@@ -491,9 +492,6 @@ void moved_kuka(const iiwa_msgs::JointPosition msg)
   float y_diff = (eef.at(1).at(3) - wrist.at(1).at(3)) / d_wf;
   float z_diff = (eef.at(2).at(3) - wrist.at(2).at(3)) / d_wf;
 
-  // cout << "X Dif: " << x_diff << endl;
-  // cout << "Z Dif: " << z_diff << endl;
-
   float phi = atan(y_diff / x_diff) * 180 / M_PI;
 
   float a = asin(z_diff / (d_wf * sin(phi * M_PI / 180)));
@@ -508,11 +506,11 @@ void moved_kuka(const iiwa_msgs::JointPosition msg)
     theta = -acos(z_diff) * 180 / M_PI;
   }
 
-  cout << "THETA: " << theta << endl;
-  cout << "PHI: " << phi << endl;
-  cout << "X: " << currentX << endl;
-  cout << "Y: " << currentY << endl;
-  cout << "Z: " << currentZ << endl;
+  // cout << "THETA: " << theta << endl;
+  // cout << "PHI: " << phi << endl;
+  // cout << "X: " << currentX << endl;
+  // cout << "Y: " << currentY << endl;
+  // cout << "Z: " << currentZ << endl;
 }
 
 void moved_kuka_angle(const iiwa_msgs::CartesianPose msg)
@@ -543,6 +541,55 @@ void moved_kuka_angle(const iiwa_msgs::CartesianPose msg)
   // cout << "yaw: " << yaw + 180 << endl;
 }
 
+void moved_touch_joints(const sensor_msgs::JointState msg)
+{
+  vector<float> joints = {
+      0, msg.position[0], msg.position[1], msg.position[2], msg.position[3], msg.position[4], msg.position[5]};
+
+  cout << "Joint 1: " << joints[1] << endl;
+  cout << "Joint 2: " << joints[2] << endl;
+  cout << "Joint 3: " << joints[3] << endl;
+  cout << "Joint 4: " << joints[4] << endl;
+  cout << "Joint 5: " << joints[5] << endl;
+  cout << "Joint 6: " << joints[6] << endl;
+
+  Manipulator manip = Manipulator::createGeoTouch();
+  VectorXd q(6);
+  q << msg.position[0] + M_PI, msg.position[1], msg.position[2] + M_PI / 2, msg.position[3], msg.position[4] + M_PI / 2,
+      msg.position[5];
+
+  ROS_INFO_STREAM(manip.fk(q).htmTool);
+  ROS_INFO_STREAM(manip.fk(q).htmTool(0, 3) * 1000);
+  ROS_INFO_STREAM(manip.fk(q).htmTool(1, 3) * 1000);
+  ROS_INFO_STREAM(manip.fk(q).htmTool(2, 3) * 1000);
+
+  // float length = 132.1;
+
+  // vector<vector<float>> t01 = {
+  //     {cos(joints[1]), 0, sin(joints[1]), 0}, {sin(joints[1]), 0, -cos(joints[1]), 0}, {0, 1, 0, length}, {0, 0, 0,
+  //     1}};
+
+  // vector<vector<float>> t12 = {
+  //     {1, 0, 0, length * cos(joints[2])}, {0, 1, 0, length * sin(joints[2])}, {0, 0, 1, 0}, {0, 0, 0, 1}};
+
+  // vector<vector<float>> t23 = {{sin(joints[3]), cos(joints[3]), 0, length * cos(joints[3])},
+  //                              {-cos(joints[3]), sin(joints[3]), 0, -length * cos(joints[3])},
+  //                              {0, 1, 1, 0},
+  //                              {0, 0, 0, 1}};
+
+  // vector<vector<float>> first_temp = mul(t01, t12);
+  // vector<vector<float>> second_temp = mul(first_temp, t23);
+
+  // for (int i = 0; i < 4; i++)
+  // {
+  //   for (int j = 0; j < 4; j++)
+  //   {
+  //     cout << second_temp.at(i).at(j) << " ";
+  //   }
+  //   cout << endl;
+  // }
+}
+
 void moved_touch(const geometry_msgs::PoseStamped msg)
 {
   float x_pos = msg.pose.position.x;
@@ -564,9 +611,9 @@ void moved_touch(const geometry_msgs::PoseStamped msg)
   double roll, pitch, yaw;
   m.getRPY(roll, pitch, yaw);
 
-  // yaw *= 180 / M_PI;
-  // pitch *= 180 / M_PI;
-  // roll *= 180 / M_PI;
+  yaw *= 180 / M_PI;
+  pitch *= 180 / M_PI;
+  roll *= 180 / M_PI;
 
   float xko = acos(cos(yaw) * cos(pitch)) * 180 / M_PI;
   float yko = acos(sin(yaw) * cos(pitch)) * 180 / M_PI;
@@ -668,6 +715,7 @@ int main(int argc, char* argv[])
   cout << endl << endl;
 
   ros::Subscriber sub = n.subscribe("/phantom/pose", 1000, moved_touch);
+  ros::Subscriber sub4 = n.subscribe("/phantom/joint_states", 1000, moved_touch_joints);
   ros::Rate loop_rate(100);
   ros::spin();
 }
