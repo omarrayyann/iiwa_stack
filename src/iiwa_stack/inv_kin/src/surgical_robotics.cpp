@@ -492,25 +492,28 @@ void moved_kuka(const iiwa_msgs::JointPosition msg)
   float y_diff = (eef.at(1).at(3) - wrist.at(1).at(3)) / d_wf;
   float z_diff = (eef.at(2).at(3) - wrist.at(2).at(3)) / d_wf;
 
-  float phi = atan(y_diff / x_diff) * 180 / M_PI;
+  float theta = atan2(sqrt(x_diff * x_diff + y_diff * y_diff), z_diff);
+  float phi = atan2(y_diff, x_diff);
 
-  float a = asin(z_diff / (d_wf * sin(phi * M_PI / 180)));
-  float theta;
+  //     float phi = atan(y_diff / x_diff) * 180 / M_PI;
 
-  if (a > 0)
-  {
-    theta = acos(z_diff) * 180 / M_PI;
-  }
-  else
-  {
-    theta = -acos(z_diff) * 180 / M_PI;
-  }
+  // float a = asin(z_diff / (d_wf * sin(phi * M_PI / 180)));
+  // float theta;
 
-  // cout << "THETA: " << theta << endl;
-  // cout << "PHI: " << phi << endl;
-  // cout << "X: " << currentX << endl;
-  // cout << "Y: " << currentY << endl;
-  // cout << "Z: " << currentZ << endl;
+  // if (a > 0)
+  // {
+  //   theta = acos(z_diff) * 180 / M_PI;
+  // }
+  // else
+  // {
+  //   theta = -acos(z_diff) * 180 / M_PI;
+  // }
+
+  cout << "THETA: " << theta << endl;
+  cout << "PHI: " << phi << endl;
+  cout << "X: " << currentX << endl;
+  cout << "Y: " << currentY << endl;
+  cout << "Z: " << currentZ << endl;
 }
 
 void moved_kuka_angle(const iiwa_msgs::CartesianPose msg)
