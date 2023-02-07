@@ -270,7 +270,7 @@ Manipulator::Manipulator(int no)
 Manipulator Manipulator::createGeoTouch()
 {
   // Create empty manipulator
-  Manipulator manip(6);
+  Manipulator manip(5);
 
   // Create links
   double d_se = 0.400;
@@ -281,21 +281,27 @@ Manipulator Manipulator::createGeoTouch()
 
   // Link(int number, double theta, double d, double alpha, double a, int type, string strName);
 
-  Link link1(1, 0, -0.1321, -M_PI / 2, 0, 0, "j1");
-  Link link2(1, 0, 0, 0, 0.1321, 0, "j2");
+  // Link link1(1, 0, -0.1321, -M_PI / 2, 0, 0, "j1");
+  // Link link2(1, 0, 0, 0, 0.1321, 0, "j2");
+  // Link link3(1, 0, 0, M_PI / 2, 0, 0, "j3");
+  // Link link4(1, 0, 0.1321, M_PI / 2, 0, 0, "j4");
+  // Link link5(1, 0, 0, M_PI / 2, 0, 0, "j5");
+  // Link link6(1, 0, 0.030, 0, 0, 0, "j6");
+
+  Link link1(1, 0, 0, M_PI / 2, 0, 0, "j1");
+  Link link2(1, 0, 0, 0, 0.133, 0, "j2");
   Link link3(1, 0, 0, M_PI / 2, 0, 0, "j3");
-  Link link4(1, 0, 0.1321, M_PI / 2, 0, 0, "j4");
-  Link link5(1, 0, 0, M_PI / 2, 0, 0, "j5");
-  Link link6(1, 0, 0.030, 0, 0, 0, "j6");
+  Link link4(1, 0, 0.133, -M_PI / 2, 0, 0, "j4");
+  Link link5(1, 0, 0, 0, -0.04, 0, "j5");
 
   linksKuka.push_back(link1);
   linksKuka.push_back(link2);
   linksKuka.push_back(link3);
   linksKuka.push_back(link4);
   linksKuka.push_back(link5);
-  linksKuka.push_back(link6);
+  // linksKuka.push_back(link6);
 
-  manip.htmWorldToBase = Utils::rotz(-M_PI / 2) * Utils::rotx(M_PI);
+  manip.htmWorldToBase = Utils::rotz(-M_PI / 2) * Utils::roty(-M_PI / 2);
 
   manip.links = linksKuka;
 

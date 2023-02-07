@@ -492,28 +492,28 @@ void moved_kuka(const iiwa_msgs::JointPosition msg)
   float y_diff = (eef.at(1).at(3) - wrist.at(1).at(3)) / d_wf;
   float z_diff = (eef.at(2).at(3) - wrist.at(2).at(3)) / d_wf;
 
-  float theta = atan2(sqrt(x_diff * x_diff + y_diff * y_diff), z_diff);
-  float phi = atan2(y_diff, x_diff);
+  // float theta = atan2(sqrt(x_diff * x_diff + y_diff * y_diff), z_diff) * 180 / M_PI;
+  // float phi = atan2(y_diff, x_diff) * 180 / M_PI;
 
-  //     float phi = atan(y_diff / x_diff) * 180 / M_PI;
+  float phi = atan(y_diff / x_diff) * 180 / M_PI;
 
-  // float a = asin(z_diff / (d_wf * sin(phi * M_PI / 180)));
-  // float theta;
+  float a = asin(z_diff / (d_wf * sin(phi * M_PI / 180)));
+  float theta;
 
-  // if (a > 0)
-  // {
-  //   theta = acos(z_diff) * 180 / M_PI;
-  // }
-  // else
-  // {
-  //   theta = -acos(z_diff) * 180 / M_PI;
-  // }
+  if (a > 0)
+  {
+    theta = acos(z_diff) * 180 / M_PI;
+  }
+  else
+  {
+    theta = -acos(z_diff) * 180 / M_PI;
+  }
 
-  cout << "THETA: " << theta << endl;
-  cout << "PHI: " << phi << endl;
-  cout << "X: " << currentX << endl;
-  cout << "Y: " << currentY << endl;
-  cout << "Z: " << currentZ << endl;
+  //   cout << "THETA: " << theta << endl;
+  //   cout << "PHI: " << phi << endl;
+  //   cout << "X: " << currentX << endl;
+  //   cout << "Y: " << currentY << endl;
+  //   cout << "Z: " << currentZ << endl;
 }
 
 void moved_kuka_angle(const iiwa_msgs::CartesianPose msg)
@@ -546,51 +546,50 @@ void moved_kuka_angle(const iiwa_msgs::CartesianPose msg)
 
 void moved_touch_joints(const sensor_msgs::JointState msg)
 {
-  vector<float> joints = {
-      0, msg.position[0], msg.position[1], msg.position[2], msg.position[3], msg.position[4], msg.position[5]};
+  vector<float> joints = {0,
+                          msg.position[0],
+                          msg.position[1],
+                          msg.position[2] - M_PI / 2,
+                          msg.position[3],
+                          msg.position[4],
+                          msg.position[5]};
 
-  cout << "Joint 1: " << joints[1] << endl;
-  cout << "Joint 2: " << joints[2] << endl;
-  cout << "Joint 3: " << joints[3] << endl;
-  cout << "Joint 4: " << joints[4] << endl;
-  cout << "Joint 5: " << joints[5] << endl;
-  cout << "Joint 6: " << joints[6] << endl;
+  // cout << "Joint 1: " << joints[1] << endl;
+  // cout << "Joint 2: " << joints[2] << endl;
+  // cout << "Joint 3: " << joints[3] << endl;
+  // cout << "Joint 4: " << joints[4] << endl;
+  // cout << "Joint 5: " << joints[5] << endl;
+  // cout << "Joint 6: " << joints[6] << endl;
 
   Manipulator manip = Manipulator::createGeoTouch();
-  VectorXd q(6);
-  q << msg.position[0] + M_PI, msg.position[1], msg.position[2] + M_PI / 2, msg.position[3], msg.position[4] + M_PI / 2,
-      msg.position[5];
+  VectorXd q(5);
+  q << msg.position[0], msg.position[1], msg.position[2], msg.position[3], -1 * msg.position[4];
 
-  ROS_INFO_STREAM(manip.fk(q).htmTool);
-  ROS_INFO_STREAM(manip.fk(q).htmTool(0, 3) * 1000);
-  ROS_INFO_STREAM(manip.fk(q).htmTool(1, 3) * 1000);
-  ROS_INFO_STREAM(manip.fk(q).htmTool(2, 3) * 1000);
+  // cout << manip.htmWorldToBase << endl << endl;
+  // cout << "1" << endl;
+  // cout << manip.fk(q).htmDH[0] << endl << endl;
+  // cout << "2" << endl;
+  // cout << manip.fk(q).htmDH[1] << endl << endl;
+  // cout << "3" << endl;
+  // cout << manip.fk(q).htmDH[2] << endl << endl;
+  // cout << "4" << endl;
 
-  // float length = 132.1;
+  float x5x = manip.fk(q).htmTool(0, 3) * 1000;
+  float x5y = manip.fk(q).htmTool(1, 3) * 1000;
+  float x5z = manip.fk(q).htmTool(2, 3) * 1000;
 
-  // vector<vector<float>> t01 = {
-  //     {cos(joints[1]), 0, sin(joints[1]), 0}, {sin(joints[1]), 0, -cos(joints[1]), 0}, {0, 1, 0, length}, {0, 0, 0,
-  //     1}};
+  cout << x5x << " " << x5y << " " << x5z << endl;
+  // cout << manip.fk(q).htmTool << endl << endl;
 
-  // vector<vector<float>> t12 = {
-  //     {1, 0, 0, length * cos(joints[2])}, {0, 1, 0, length * sin(joints[2])}, {0, 0, 1, 0}, {0, 0, 0, 1}};
+  // float test_1 = atan2(manip.fk(q).htmTool(2, 1), manip.fk(q).htmTool(2, 2)) * 180 / M_PI;
+  // float test_2 = atan2(-1 * manip.fk(q).htmTool(2, 0),
+  //                      pow(pow(manip.fk(q).htmTool(2, 1), 2) + pow(manip.fk(q).htmTool(2, 2), 2), 0.5)) *
+  //                180 / M_PI;
+  // float test_3 = atan2(manip.fk(q).htmTool(1, 0), manip.fk(q).htmTool(0, 0)) * 180 / M_PI;
 
-  // vector<vector<float>> t23 = {{sin(joints[3]), cos(joints[3]), 0, length * cos(joints[3])},
-  //                              {-cos(joints[3]), sin(joints[3]), 0, -length * cos(joints[3])},
-  //                              {0, 1, 1, 0},
-  //                              {0, 0, 0, 1}};
-
-  // vector<vector<float>> first_temp = mul(t01, t12);
-  // vector<vector<float>> second_temp = mul(first_temp, t23);
-
-  // for (int i = 0; i < 4; i++)
-  // {
-  //   for (int j = 0; j < 4; j++)
-  //   {
-  //     cout << second_temp.at(i).at(j) << " ";
-  //   }
-  //   cout << endl;
-  // }
+  // cout << "First: " << test_1 << endl;
+  // cout << "Second: " << test_2 << endl;
+  // cout << "Third: " << test_3 << endl;
 }
 
 void moved_touch(const geometry_msgs::PoseStamped msg)
@@ -626,15 +625,6 @@ void moved_touch(const geometry_msgs::PoseStamped msg)
 
   float Phi_Final = pitch + 180;
 
-  // cout << "Orientation:" << endl;
-  // cout << "roll: " << roll << endl;
-  // cout << "pitch: " << pitch << endl;
-  // cout << "yaw: " << yaw << endl;
-  // cout << "xko: " << xko << endl;
-  // cout << "yko: " << yko << endl;
-  // cout << "zko: " << zko << endl;
-  // cout << "possible pitch: " << Phi_Final << endl;
-  // cout << "THETA: " << Theta_Final << endl;
   if (touch_origin.empty())
   {
     touch_origin.push_back(x_pos);

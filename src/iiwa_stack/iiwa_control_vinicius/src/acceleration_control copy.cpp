@@ -9,7 +9,6 @@
 #include <fstream>
 #include <ros/ros.h>
 #include <ros/service.h>
-#include <chrono>
 
 // #include <trajectory_msgs/JointTrajectory.h>
 // #include <trajectory_msgs/JointTrajectoryPoint.h>
@@ -84,18 +83,6 @@ string printVector(VectorXd v)
   return str;
 }
 
-string printVectorOctave(VectorXd v)
-{
-  string str = "[";
-
-  for (int i = 0; i < v.rows(); i++)
-  {
-    str += std::to_string(v[i]) + ((i < v.rows() - 1) ? " " : "]");
-  }
-
-  return str;
-}
-
 int main(int argc, char** argv)
 {
   // Initialize ROS variables
@@ -137,6 +124,7 @@ int main(int argc, char** argv)
   // Initialize log file
   ofstream file;
   string filename;
+  filename = "/home/cair1/Desktop/octavelogs/log" + std::to_string(ros::Time::now().nsec) + ".m";
   filename = "/home/cair1/Desktop/octavelogs/logkuka.txt";
 
   // filename = "/home/cair1/Desktop/octavelogs/log.txt";
@@ -144,7 +132,7 @@ int main(int argc, char** argv)
 
   ofstream file2;
   string filename2;
-  filename2 = "/home/cair1/Desktop/octavelogs/logkukaoctave.m";
+  filename2 = "/home/cair1/Desktop/uaibotlogs/log" + std::to_string(ros::Time::now().nsec) + ".txt";
   file2.open(filename2, std::ios::out);
   file2 << "data=[]" << std::endl;
 
@@ -170,10 +158,9 @@ int main(int argc, char** argv)
 
   param.h = 0.05;  // 0.05
   param.kconv = 0.5;
-  param.distSafeObs = param.h > 0 ? 0.205 : 0.02;  // 0.2 for h>0 and 0.015 for h=0
+  param.distSafeObs = 0.2;  // 0.2 for h>0 and 0.015 for h=0
   param.considerAutoCollision = false;
   param.etaObs = 0.8;
-  param.maxDistAABB = 100000;
 
   bool reachedZeroPosition = false;
 
@@ -185,21 +172,9 @@ int main(int argc, char** argv)
 
   double fac = 60;  // 80
 
-  bool notEnded = true;
+  bool notColided = true;
 
-  double totalTime = 0;
-  int noRuns = 0;
-
-  file2 << "t = [];" << std::endl;
-  file2 << "q = [];" << std::endl;
-  file2 << "qdot = [];" << std::endl;
-  file2 << "qddot = [];" << std::endl;
-  file2 << "timeSpent = [];" << std::endl;
-  file2 << "minD = [];" << std::endl;
-  file2 << "V = [];" << std::endl;
-
-  qdot = VectorXd::Zero(7);
-  while (ros::ok() && notEnded)
+  while (ros::ok() && notColided)
   {
     ros::spinOnce();
 
@@ -233,16 +208,7 @@ int main(int argc, char** argv)
       if (histq.size() > 0 && histdotq.size() > 0)
       {
         q = histq[histq.size() - 1];
-
-        if (histq.size() > 1)
-        {
-          qdot = 0.98 * qdot + 0.02 * (histq[histq.size() - 1] - histq[histq.size() - 2]) / dt;
-        }
-        else
-        {
-          // qdot = histdotq[histdotq.size() - 1];
-          qdot = VectorXd::Zero(7);
-        }
+        qdot = histdotq[histdotq.size() - 1];
 
         // Make the simulation for N steps ahead
         VectorXd qsim = q;
@@ -251,6 +217,7 @@ int main(int argc, char** argv)
         for (int n = 0; n < N; n++)
         {
           ccr = robot->accelConstControl(htmTg, qdotsim / fac, obstacles, NULL, param, qsim);
+
           ccr.action = (fac * fac) * ccr.action;
 
           if (ccr.feasible)
@@ -260,8 +227,7 @@ int main(int argc, char** argv)
           }
           else
           {
-            ROS_INFO_STREAM("Unfeasible after " << n << " steps...");
-            n = N;
+            ROS_INFO_STREAM("INTUNF");
           }
         }
 
@@ -270,56 +236,6 @@ int main(int argc, char** argv)
         if (!ccr.feasible)
         {
           ROS_INFO_STREAM("Not feasible!!!" << std::endl);
-          notEnded = false;
-
-          // Start debug
-
-          // Create all constraints with collisions with the obstacles
-          DistanceRobotObjResult dlo, dloOld, dloNext;
-
-          q = qsim;
-          qdot = qdotsim;
-
-          file << "#Debug for the optimization problem:" << std::endl;
-
-          file << "# b = " << printVector(ccr.b) << std::endl << std::endl;
-
-          for (int i = 0; i < obstacles.size(); i++)
-          {
-            dloOld = NULL;
-            dlo = iiwa.computeDistToObj(obstacles[i], q, Matrix4d::Identity(), &dloOld, param.tol, param.h,
-                                        param.maxDistAABB);
-            dloNext = iiwa.computeDistToObj(obstacles[i], q + qdot * param.dt, Matrix4d::Identity(), &dlo, param.tol,
-                                            param.h, param.maxDistAABB);
-
-            ccr.distancesObjResult.push_back(dlo);
-
-            file << "# Obstacle " << i << ": " << std::endl << std::endl;
-            for (int j = 0; j < dlo.noElements; j++)
-            {
-              // Try to find the respective element in dloNext.
-
-              DistanceLinkObjResult* dlorNext = dloNext.getItem(dlo[j].linkNumber, dlo[j].colObjLinkNumber);
-              if (dlorNext != NULL)
-              {
-                double dist = dlo[j].distance - param.distSafeObs;
-                double distDot = (dlorNext->distance - dlo[j].distance) / param.dt;
-                VectorXd gradDot = (dlorNext->jacDist - dlo[j].jacDist) / param.dt;
-                double coriolisCentrifugal = (gradDot.transpose() * qdot)[0];
-                double K = param.etaObs;
-                double b = -coriolisCentrifugal - 2 * K * distDot - K * K * dist;
-
-                file << "#  Link " << dlo[j].linkNumber << ", col object " << dlo[j].colObjLinkNumber << ": "
-                     << std::endl;
-                file << "#   dist = " << dist << std::endl;
-                file << "#   distDot = " << distDot << std::endl;
-                file << "#   gradDot = " << printVector(gradDot) << std::endl;
-                file << "#   coriolisCentrifugal = " << coriolisCentrifugal << std::endl;
-                file << "#   b = " << b << (b > 0 ? " !CRITICAL " : " ") << std::endl << std::endl;
-              }
-            }
-          }
-          //
         }
         else
         {
@@ -390,40 +306,12 @@ int main(int argc, char** argv)
           ROS_INFO_STREAM("Position error:" << std::to_string(1000 * ccr.taskResult.maxErrorPos) << " milimeters");
           ROS_INFO_STREAM("Orientation error:" << std::to_string(ccr.taskResult.maxErrorOri) << " degrees"
                                                << std::endl);
+          ROS_INFO_STREAM("Critical distance (h): " << (dsh.distance - param.distSafeObs));
+          ROS_INFO_STREAM("Critical distance (0): " << (ds0.distance));
 
-          // Print to octave
-
-          file2 << "t = [t " << t << "];" << std::endl;
-          file2 << "q = [q; " << printVectorOctave(q) << "];" << std::endl;
-          file2 << "qdot = [qdot; " << printVectorOctave(qdot) << "];" << std::endl;
-          file2 << "qddot = [qddot; " << printVectorOctave(ccr.action) << "];" << std::endl;
-          file2 << "timeSpent = [timeSpent " << ccr.milisecondsSpent << "];" << std::endl;
-
-          double minD = 100000;
-          minD = iiwa.computeDistToObj(obstacles[0]).getClosest().distance;
-          minD = min(minD, iiwa.computeDistToObj(obstacles[1]).getClosest().distance);
-          minD = min(minD, iiwa.computeDistToObj(obstacles[2]).getClosest().distance);
-          minD = min(minD, iiwa.computeDistToObj(obstacles[3]).getClosest().distance);
-
-          file2 << "minD = [minD " << minD << "];" << std::endl;
-
-          double alpha = param.kconv;
-          double beta = param.beta;
-          double sigma = param.sigma;
-
-          TaskResult tr = iiwa.taskFunction(htmTg, q);
-          VectorXd r = tr.task;
-          VectorXd rdot = tr.jacTask * qdot;
-
-          double V = alpha * pow((rdot + alpha * r).norm(), 2) + sigma * beta * pow(qdot.norm(), 2);
-
-          file2 << "V = [V " << V << "];" << std::endl;
-
-          ROS_INFO_STREAM("Critical distance: " << minD);
-
-          if (minD < 0.005)
+          if (ds0.distance < 0.01)
           {
-            notEnded = false;
+            notColided = false;
             ROS_INFO_STREAM("Colided!");
           }
         }
