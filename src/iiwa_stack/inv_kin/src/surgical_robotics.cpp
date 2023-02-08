@@ -565,14 +565,13 @@ void moved_touch_joints(const sensor_msgs::JointState msg)
   VectorXd q(5);
   q << msg.position[0], msg.position[1], msg.position[2], msg.position[3], -1 * msg.position[4];
 
-  // cout << manip.htmWorldToBase << endl << endl;
-  // cout << "1" << endl;
-  // cout << manip.fk(q).htmDH[0] << endl << endl;
-  // cout << "2" << endl;
-  // cout << manip.fk(q).htmDH[1] << endl << endl;
-  // cout << "3" << endl;
-  // cout << manip.fk(q).htmDH[2] << endl << endl;
-  // cout << "4" << endl;
+  vector<float> rotation = {{manip.fk(q).htmTool(0, 0), manip.fk(q).htmTool(0, 1), manip.fk(q).htmTool(0, 2)},
+                            {manip.fk(q).htmTool(1, 0), manip.fk(q).htmTool(1, 1), manip.fk(q).htmTool(1, 2)},
+                            {manip.fk(q).htmTool(2, 0), manip.fk(q).htmTool(2, 1), manip.fk(q).htmTool(2, 2)}};
+
+  vector<float> final_unit_vector_tmp = Vector_multi(rotation, Utils::rotx(-M_PI / 2));
+  vector<float> final_unit_vector_tmp2 = Vector_multi(final_unit_vector_tmp, Utils::rotz(M_PI / 2));
+  vector<float> final_unit_vector = Vector_multi(final_unit_vector_tmp2, ez);
 
   float x5x = manip.fk(q).htmTool(0, 3) * 1000;
   float x5y = manip.fk(q).htmTool(1, 3) * 1000;

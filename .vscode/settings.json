@@ -35,6 +35,7 @@
     "functional": "cpp",
     "tuple": "cpp",
     "variant": "cpp",
-    "iosfwd": "cpp"
+    "iosfwd": "cpp",
+    "__node_handle": "cpp"
   }
 }
