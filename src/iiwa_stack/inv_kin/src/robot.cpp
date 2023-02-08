@@ -281,18 +281,17 @@ Manipulator Manipulator::createGeoTouch()
 
   // Link(int number, double theta, double d, double alpha, double a, int type, string strName);
 
-  // Link link1(1, 0, -0.1321, -M_PI / 2, 0, 0, "j1");
-  // Link link2(1, 0, 0, 0, 0.1321, 0, "j2");
-  // Link link3(1, 0, 0, M_PI / 2, 0, 0, "j3");
-  // Link link4(1, 0, 0.1321, M_PI / 2, 0, 0, "j4");
-  // Link link5(1, 0, 0, M_PI / 2, 0, 0, "j5");
-  // Link link6(1, 0, 0.030, 0, 0, 0, "j6");
-
   Link link1(1, 0, 0, M_PI / 2, 0, 0, "j1");
   Link link2(1, 0, 0, 0, 0.133, 0, "j2");
   Link link3(1, 0, 0, M_PI / 2, 0, 0, "j3");
   Link link4(1, 0, 0.133, -M_PI / 2, 0, 0, "j4");
   Link link5(1, 0, 0, 0, -0.04, 0, "j5");
+
+  // Link link1(1, 0, 0, M_PI / 2, 0, 0, "j1");
+  // Link link2(1, 0, 0, 0, 0, 0, "j2");
+  // Link link3(1, 0, 0, M_PI / 2, 0, 0, "j3");
+  // Link link4(1, 0, 0, -M_PI / 2, 0, 0, "j4");
+  // Link link5(1, 0, 0, 0, 0, 0, "j5");
 
   linksKuka.push_back(link1);
   linksKuka.push_back(link2);
