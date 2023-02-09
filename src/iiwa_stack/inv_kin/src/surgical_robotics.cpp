@@ -167,6 +167,7 @@ string removeSpaces(string s);
 
 using namespace std;
 
+vector<float> testing = {0, 0, 0};
 bool publishNewEEF(ros::Publisher jointAnglesPublisher, ros::Publisher xyzPublisher, float xPosition, float yPosition,
                    float zPosition, float eefPhiOrientation, float eefThetaOrientation, float armAngle)
 {
@@ -213,6 +214,15 @@ bool publishNewEEF(ros::Publisher jointAnglesPublisher, ros::Publisher xyzPublis
     quantity.a5 = jointAngles[4] * M_PI / 180;
     quantity.a6 = jointAngles[5] * M_PI / 180;
     quantity.a7 = jointAngles[6] * M_PI / 180;
+
+    Manipulator manip = Manipulator::createKukaIIWA();
+    VectorXd q(7);
+    q << jointAngles[0] * M_PI / 180, jointAngles[1] * M_PI / 180, jointAngles[2] * M_PI / 180,
+        jointAngles[3] * M_PI / 180, jointAngles[4] * M_PI / 180, jointAngles[5] * M_PI / 180,
+        jointAngles[6] * M_PI / 180;
+    testing[0] = (float)manip.fk(q).htmTool(0, 2);
+    testing[1] = (float)manip.fk(q).htmTool(1, 2);
+    testing[2] = (float)manip.fk(q).htmTool(2, 2);
 
     jointPosition.position = quantity;
 
@@ -493,16 +503,9 @@ void moved_kuka(const iiwa_msgs::JointPosition msg)
   float y_diff = (eef.at(1).at(3) - wrist.at(1).at(3)) / d_wf;
   float z_diff = (eef.at(2).at(3) - wrist.at(2).at(3)) / d_wf;
 
-  currentPhi = (atan2(y_diff, x_diff) + M_PI) * 180 / M_PI;
+  currentPhi = (atan2(y_diff, x_diff)) * 180 / M_PI;
 
-  if (x_diff >= 0)
-  {
-    currentTheta = 2 * M_PI - atan2(pow((pow(x_diff, 2) + pow(y_diff, 2)), 0.5), z_diff) * 180 / M_PI;
-  }
-  else
-  {
-    currentTheta = atan2(pow((pow(x_diff, 2) + pow(y_diff, 2)), 0.5), z_diff) * 180 / M_PI;
-  }
+  currentTheta = acos(z_diff) * 180 / M_PI;
 }
 
 float final_theta;
@@ -530,22 +533,35 @@ void moved_touch_joints(const sensor_msgs::JointState msg)
 
   unit_vector *= -1;
 
+  Matrix4d desHTM = Utils::rotz(-M_PI / 2) * Utils::rotx(M_PI / 2) * manip.fk(q).htmTool;
+
   VectorXd corrected_unit_vector = Utils::rotz(-M_PI / 2) * Utils::rotx(M_PI / 2) * unit_vector;
 
   float x_diff = corrected_unit_vector[0];
   float y_diff = corrected_unit_vector[1];
   float z_diff = corrected_unit_vector[2];
 
-  final_phi = (atan2(y_diff, x_diff)) * 180 / M_PI;
+  // -180 -> +180
+  final_phi = (M_PI + atan2(y_diff, x_diff)) * 180 / M_PI;
+  final_theta = acos(z_diff) * 180 / M_PI;
 
-  if (x_diff >= 0)
-  {
-    final_theta = (2 * M_PI - atan2(pow((pow(x_diff, 2) + pow(y_diff, 2)), 0.5), z_diff)) * 180 / M_PI;
-  }
-  else
-  {
-    final_theta = (atan2(pow((pow(x_diff, 2) + pow(y_diff, 2)), 0.5), z_diff)) * 180 / M_PI;
-  }
+  cout << "Theory TOUCH X-ORIENTATION: " << endl;
+  cout << "X: " << cos(final_phi * M_PI / 180) * sin(final_theta * M_PI / 180) << endl;
+  cout << "Y: " << sin(final_phi * M_PI / 180) * sin(final_theta * M_PI / 180) << endl;
+  cout << "Z: " << cos(final_theta * M_PI / 180) << endl;
+  cout << endl;
+
+  cout << "ACTUAL TOUCH X-ORIENTATION: " << endl;
+  cout << "X: " << x_diff << endl;
+  cout << "Y: " << y_diff << endl;
+  cout << "Z: " << z_diff << endl;
+  cout << endl;
+
+  cout << "KUKA X-ORIENTATION: " << endl;
+  cout << "X: " << testing.at(0) << endl;
+  cout << "Y: " << testing.at(1) << endl;
+  cout << "Z: " << testing.at(2) << endl;
+  cout << endl;
 }
 
 void moved_touch(const geometry_msgs::PoseStamped msg)
@@ -587,8 +603,8 @@ void moved_touch(const geometry_msgs::PoseStamped msg)
     y_dif /= 5;
     z_dif /= 5;
 
-    cout << "   Theta: " << final_theta << endl;
-    cout << "   Phi: " << final_phi << endl;
+    // cout << "   Theta: " << final_theta << endl;
+    // cout << "   Phi: " << final_phi << endl;
 
     publishNewEEF(pub, pub2, y_dif + startingPosition.at(0), -x_dif + startingPosition.at(1),
                   z_dif + startingPosition.at(2), final_phi, final_theta, -218.4);
@@ -638,14 +654,17 @@ int main(int argc, char* argv[])
   cout << endl;
 
   cout << "   Move the Touch 3D Geomagic to the initial position, hit enter to START ";
-
   c = getch();
 
   cout << endl << endl;
 
   ros::Subscriber sub = n.subscribe("/phantom/pose", 1000, moved_touch);
   ros::Rate loop_rate(100);
-  ros::spin();
+
+  while (ros::ok())
+  {
+    ros::spinOnce();
+  }
 }
 
 bool inv_kin_kuka(double X, double Y, double Z, double eef_phi, double eef_theta, double armAng_in, float* jointAngles)
