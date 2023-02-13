@@ -314,9 +314,9 @@ Manipulator Manipulator::createKukaIIWA()
 
   // Create links
   double d_bs = 0.340;
-  double d_se = 0.400;
+  double d_se = 0.420;
   double d_ew = 0.400;
-  double d_wf = 0.152;
+  double d_wf = 0.639;
 
   vector<Link> linksKuka;
 

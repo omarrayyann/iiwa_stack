@@ -196,6 +196,10 @@ int main(int argc, char** argv)
   file2 << "qddot = [];" << std::endl;
   file2 << "timeSpent = [];" << std::endl;
   file2 << "minD = [];" << std::endl;
+  file2 << "minD0 = [];" << std::endl;
+  file2 << "minD1 = [];" << std::endl;
+  file2 << "minD2 = [];" << std::endl;
+  file2 << "minD3 = [];" << std::endl;
   file2 << "V = [];" << std::endl;
 
   qdot = VectorXd::Zero(7);
@@ -399,13 +403,30 @@ int main(int argc, char** argv)
           file2 << "qddot = [qddot; " << printVectorOctave(ccr.action) << "];" << std::endl;
           file2 << "timeSpent = [timeSpent " << ccr.milisecondsSpent << "];" << std::endl;
 
+          double D0 = iiwa.computeDistToObj(obstacles[0], q, Matrix4d::Zero(), NULL, 0.0005, 0.001, 10000)
+                          .getClosest()
+                          .distance;
+          double D1 = iiwa.computeDistToObj(obstacles[1], q, Matrix4d::Zero(), NULL, 0.0005, 0.001, 10000)
+                          .getClosest()
+                          .distance;
+          double D2 = iiwa.computeDistToObj(obstacles[2], q, Matrix4d::Zero(), NULL, 0.0005, 0.001, 10000)
+                          .getClosest()
+                          .distance;
+          double D3 = iiwa.computeDistToObj(obstacles[3], q, Matrix4d::Zero(), NULL, 0.0005, 0.001, 10000)
+                          .getClosest()
+                          .distance;
+
           double minD = 100000;
-          minD = iiwa.computeDistToObj(obstacles[0]).getClosest().distance;
-          minD = min(minD, iiwa.computeDistToObj(obstacles[1]).getClosest().distance);
-          minD = min(minD, iiwa.computeDistToObj(obstacles[2]).getClosest().distance);
-          minD = min(minD, iiwa.computeDistToObj(obstacles[3]).getClosest().distance);
+          minD = D0;
+          minD = min(minD, D1);
+          minD = min(minD, D2);
+          minD = min(minD, D3);
 
           file2 << "minD = [minD " << minD << "];" << std::endl;
+          file2 << "minD0 = [minD0 " << D0 << "];" << std::endl;
+          file2 << "minD1 = [minD1 " << D1 << "];" << std::endl;
+          file2 << "minD2 = [minD2 " << D2 << "];" << std::endl;
+          file2 << "minD3 = [minD3 " << D3 << "];" << std::endl;
 
           double alpha = param.kconv;
           double beta = param.beta;
