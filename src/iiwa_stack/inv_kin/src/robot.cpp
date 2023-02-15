@@ -313,7 +313,7 @@ Manipulator Manipulator::createKukaIIWA()
   Manipulator manip(7);
 
   // Create links
-  double d_bs = 0.340;
+  double d_bs = 0.360;
   double d_se = 0.420;
   double d_ew = 0.400;
   double d_wf = 0.639;

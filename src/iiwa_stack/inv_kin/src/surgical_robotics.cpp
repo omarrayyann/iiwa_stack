@@ -231,9 +231,9 @@ void moved_kuka(const iiwa_msgs::JointPosition msg)
 
   FKResult fkResult = manip.fk(q);
 
-  currentX = manip.fk(q).htmTool(0, 3);
-  currentY = manip.fk(q).htmTool(1, 3);
-  currentZ = manip.fk(q).htmTool(2, 3);
+  currentX = 1000 * manip.fk(q).htmTool(0, 3);
+  currentY = 1000 * manip.fk(q).htmTool(1, 3);
+  currentZ = 1000 * manip.fk(q).htmTool(2, 3);
 
   float x_diff = 1000 * (manip.fk(q).htmTool(0, 3) - manip.fk(q).htmDH[4](0, 3)) / d_wf;
   float y_diff = 1000 * (manip.fk(q).htmTool(1, 3) - manip.fk(q).htmDH[4](1, 3)) / d_wf;
@@ -243,21 +243,24 @@ void moved_kuka(const iiwa_msgs::JointPosition msg)
 
   currentTheta = acos(z_diff) * 180 / M_PI;
 
-  vector<double> position_elbow_2 = {manip.fk(q).htmDH[2](0, 3), manip.fk(q).htmDH[2](1, 3),
-                                     manip.fk(q).htmDH[2](2, 3)};
-  vector<double> position_shoulder_2 = {manip.fk(q).htmDH[0](0, 3), manip.fk(q).htmDH[0](1, 3),
-                                        manip.fk(q).htmDH[0](2, 3)};
+  vector<double> position_elbow_2 = {1000 * manip.fk(q).htmDH[2](0, 3), 1000 * manip.fk(q).htmDH[2](1, 3),
+                                     1000 * manip.fk(q).htmDH[2](2, 3)};
 
-  // psw
-  vector<double> shoulder_to_wrist = {manip.fk(q).htmDH[4](0, 3), manip.fk(q).htmDH[4](1, 3),
-                                      manip.fk(q).htmDH[4](2, 3)};
+  vector<double> position_shoulder_2 = {1000 * manip.fk(q).htmDH[0](0, 3), 1000 * manip.fk(q).htmDH[0](1, 3),
+                                        1000 * manip.fk(q).htmDH[0](2, 3)};
+  vector<double> position_wrist_2 = {1000 * manip.fk(q).htmDH[4](0, 3), 1000 * manip.fk(q).htmDH[4](1, 3),
+                                     1000 * manip.fk(q).htmDH[4](2, 3)};
+  // // psw
+  vector<double> shoulder_to_wrist = Vector_substraction(position_wrist_2, position_shoulder_2);
+
+  // cout << shoulder_to_wrist.at(0) << " " << shoulder_to_wrist.at(1) << " " << shoulder_to_wrist.at(2) << endl;
 
   double psw_length_2 =
       sqrt(pow(shoulder_to_wrist.at(0), 2) + pow(shoulder_to_wrist.at(1), 2) + pow(shoulder_to_wrist.at(2), 2));
 
   double pc_length_2 = abs(420.0 * (pow(400.0, 2) - pow(420.0, 2) - pow(psw_length_2, 2)) / (840.0 * psw_length_2));
 
-  vector<double> pc_2 = Vector_division(psw, (psw_length_2 / pc_length_2));
+  vector<double> pc_2 = Vector_division(shoulder_to_wrist, (psw_length_2 / pc_length_2));
 
   double alpha_2 = asin(pc_length_2 / d_se);
   double alpha2_2 = (alpha_2 * 180) / pi;
@@ -265,6 +268,7 @@ void moved_kuka(const iiwa_msgs::JointPosition msg)
 
   vector<double> pc_unit_2 =
       Vector_division(pc_2, (sqrt(pow(pc_2.at(0), 2) + pow(pc_2.at(1), 2) + pow(pc_2.at(2), 2))));
+
   vector<double> zero_axis_2 = {1, 0, 0};  // arbitrary axis a, (here ArmAngle = 0)
 
   double u_tmp_2 = Vector_scalar(zero_axis_2, pc_unit_2);
@@ -274,19 +278,16 @@ void moved_kuka(const iiwa_msgs::JointPosition msg)
       sqrt(pow(vec_u_tmp_2_2.at(0), 2) + pow(vec_u_tmp_2_2.at(1), 2) + pow(vec_u_tmp_2_2.at(2), 2));
   vector<double> vec_u_2 = Vector_division(vec_u_tmp_2_2, vec_u_tmp_len_2);
 
-  vector<double> vec_v_2 = Vector_cross(vec_u_2, pc);
+  vector<double> vec_v_2 = Vector_cross(vec_u_2, pc_2);
   double vec_b_length_2 = sqrt(pow(vec_v_2.at(0), 2) + pow(vec_v_2.at(1), 2) + pow(vec_v_2.at(2), 2));
   vec_v_2 = Vector_division(vec_v_2, vec_b_length_2);  // unit vector
 
-  float x_first = position_elbow_2.at(0) - pc_2.at(0) - position_shoulder_2.at(0);
-  float y_first = position_elbow_2.at(1) - pc_2.at(1) - position_shoulder_2.at(1);
-  float z_first = position_elbow_2.at(2) - pc_2.at(2) - position_shoulder_2.at(2);
+  float x_first = (position_elbow_2.at(0) - pc_2.at(0) - position_shoulder_2.at(0)) / R_2;
 
   float arm_angle_computed =
-      acos(x_first / pow(pow(vec_v_2.at(0), 2) + pow(vec_u_2.at(0), 2), 0.5)) + atan2(vec_v_2.at(0) / vec_u_2.at(0));
+      acos(x_first / pow(pow(vec_v_2.at(0), 2) + pow(vec_u_2.at(0), 2), 0.5)) + atan2(vec_v_2.at(0), vec_u_2.at(0));
 
-  cout << "ARM ANGLE COMPUTED: " << arm_angle_computed * 180 / M_PI << endl;
-  ;
+  armAngle = 180 * arm_angle_computed / M_PI;
 }
 
 void moved_touch_joints(const sensor_msgs::JointState msg)
@@ -338,20 +339,20 @@ void moved_touch(const geometry_msgs::PoseStamped msg)
     cout << "   Z: " << 1000 * touch_origin.at(2) << endl;
     cout << "   Theta: " << final_theta << endl;
     cout << "   Phi: " << final_phi << endl;
+
     cout << endl << "   STARTED MOTION SUCCESSFULLY" << endl;
   }
   else
   {
-    float x_dif = 1000 * (x_pos - touch_origin.at(0)) / 5;
-    float y_dif = 1000 * (y_pos - touch_origin.at(1)) / 5;
-    float z_dif = 1000 * (z_pos - touch_origin.at(2)) / 5;
+    float x_dif = 1000 * (x_pos - touch_origin.at(0));
+    float y_dif = 1000 * (y_pos - touch_origin.at(1));
+    float z_dif = 1000 * (z_pos - touch_origin.at(2));
+    x_dif /= 2;
+    y_dif /= 2;
+    z_dif /= 2;
 
-    x_dif /= 5;
-    y_dif /= 5;
-    z_dif /= 5;
-
-    // publishNewEEF(pub, pub2, y_dif + startingPosition.at(0), -x_dif + startingPosition.at(1),
-    //               z_dif + startingPosition.at(2), final_phi, final_theta, armAngle);
+    publishNewEEF(pub, pub2, y_dif + startingPosition.at(0), -x_dif + startingPosition.at(1),
+                  z_dif + startingPosition.at(2), final_phi, final_theta, armAngle);
   }
 }
 
@@ -359,8 +360,8 @@ int main(int argc, char* argv[])
 {
   ros::init(argc, argv, "surgical_roboitcs");
   ros::NodeHandle n;
-  pub = n.advertise<iiwa_msgs::JointPosition>("/iiwa/command/JointPosition", 100);
-  pub2 = n.advertise<std_msgs::Float32MultiArray>("eefGoals", 100);
+  pub = n.advertise<iiwa_msgs::JointPosition>("/iiwa/command/JointPosition", 100000);
+  pub2 = n.advertise<std_msgs::Float32MultiArray>("eefGoals", 100000);
 
   origin.push_back(450.0);
   origin.push_back(0.0);
@@ -375,60 +376,18 @@ int main(int argc, char* argv[])
   cout << "   |____/ \\__,_|_|  \\__, |_|\\___\\__,_|_| |_| \\_\\___/|_.__/ \\___/ \\__|_|\\___|___/ " << endl;
   cout << "                    |___/                                    1.0 by omar rayyan" << endl;
   cout << endl << endl << endl;
-  cout << "   Would you like to set KUKA's origin's position physically (1) or manually (2)?" << endl;
-  cout << "   Choice: ";
-  string choice;
-  cin >> choice;
-  ros::Subscriber sub2;
-  ros::Subscriber sub4;
+  cout << "   Move the KUKA robot to the initial position, hit enter to confirm position ";
+  ros::Subscriber sub2 = n.subscribe("/iiwa/state/JointPosition", 1000, moved_kuka);
+  ros::Subscriber sub4 = n.subscribe("/phantom/joint_states", 100000, moved_touch_joints);
 
-  while (1)
-  {
-    if (choice == "1")
-    {
-      cout << "   Move the KUKA robot to the initial position, hit enter to confirm position";
-      sub2 = n.subscribe("/iiwa/state/JointPosition", 1000, moved_kuka);
-      char c = getch();
-      ros::spinOnce();
-      startingPosition.push_back(currentX);
-      startingPosition.push_back(currentY);
-      startingPosition.push_back(currentZ);
-      startingPosition.push_back(currentPhi);
-      startingPosition.push_back(currentTheta);
-      break;
-    }
-    else if (choice == "2")
-    {
-      cout << "X: ";
-      cin >> currentX;
-      cout << "Y: ";
-      cin >> currentY;
-      cout << "Z: ";
-      cin >> currentZ;
-      cout << "Phi: ";
-      cin >> currentPhi;
-      cout << "Theta: ";
-      cin >> currentTheta;
-      cout << "Arm Angle: ";
-      cin >> armAngle;
-      startingPosition.push_back(currentX);
-      startingPosition.push_back(currentY);
-      startingPosition.push_back(currentZ);
-      startingPosition.push_back(currentPhi);
-      startingPosition.push_back(currentTheta);
-      startingPosition.push_back(armAngle);
-
-      break;
-    }
-    else
-    {
-      cout << "Unexpected Input, Try again." << endl;
-      cout << "Would you like to set KUKA's origin's position physically (1) or manually (2)?" << endl;
-      cout << "Choice: ";
-      cin >> choice;
-    }
-  }
-  sub4 = n.subscribe("/phantom/joint_states", 1000, moved_touch_joints);
+  char c = getch();
+  ros::spinOnce();
+  startingPosition.push_back(currentX);
+  startingPosition.push_back(currentY);
+  startingPosition.push_back(currentZ);
+  startingPosition.push_back(currentPhi);
+  startingPosition.push_back(currentTheta);
+  startingPosition.push_back(armAngle);
 
   cout << endl << endl << "   KUKA Starting Position Set as: " << endl;
 
@@ -437,16 +396,20 @@ int main(int argc, char* argv[])
   cout << "   Z: " << startingPosition.at(2) << endl;
   cout << "   Phi: " << startingPosition.at(3) << endl;
   cout << "   Theta: " << startingPosition.at(4) << endl;
+  cout << "   Arm Angle: " << armAngle << endl;
 
   cout << endl;
 
-  cout << "   Move the Touch 3D Geomagic to the initial position, hit enter to START ";
-  char c = getch();
+  cout << "   Hold the Touch 3D Geomagic to the initial position and hit enter ";
+  c = getch();
 
   cout << endl << endl;
 
   ros::Subscriber sub = n.subscribe("/phantom/pose", 1000, moved_touch);
   ros::Rate loop_rate(100);
+  armAngle = -218.4;
+  publishNewEEF(pub, pub2, startingPosition.at(0), startingPosition.at(1), startingPosition.at(2),
+                startingPosition.at(3), startingPosition.at(4), armAngle);
 
   while (ros::ok())
   {
@@ -456,10 +419,10 @@ int main(int argc, char* argv[])
 
 bool inv_kin_kuka(double X, double Y, double Z, double eef_phi, double eef_theta, double armAng_in, float* jointAngles)
 {
-  // cout << "Commanded: \nPosition (X,Y,Z) [mm]: [" << X << ", " << Y << ", " << Z << "]" << endl;
-  // cout << "EEF Orientation (Phi, Theta) [deg]: [" << eef_phi << ", " << eef_theta << "]" << endl;
-  // cout << "Entered arm Angle [deg]: " << armAng << endl;
-  // cout << "-------------------------------------" << endl;
+  cout << "Commanded: \nPosition (X,Y,Z) [mm]: [" << X << ", " << Y << ", " << Z << "]" << endl;
+  cout << "EEF Orientation (Phi, Theta) [deg]: [" << eef_phi << ", " << eef_theta << "]" << endl;
+  cout << "Entered arm Angle [deg]: " << armAng << endl;
+  cout << "-------------------------------------" << endl;
 
   // calc joint values
   inv_kin_kuka_angle_calc(X, Y, Z, eef_phi, eef_theta, armAng_in);
@@ -474,7 +437,7 @@ bool inv_kin_kuka(double X, double Y, double Z, double eef_phi, double eef_theta
   else if (abs(phi1) >= phi1_max | abs(phi2) >= phi2_max | abs(phi3) >= phi3_max | abs(phi4) >= phi4_max |
            abs(phi5) >= phi5_max | abs(phi6) >= phi6_max | abs(phi7) >= phi7_max)
   {
-    armAng = adapt_elbow_position(X, Y, Z, eef_phi, eef_theta, armAng_in);
+    armAngle = adapt_elbow_position(X, Y, Z, eef_phi, eef_theta, armAng_in);
     // return false;
   }
   // store calculated joint values for next round
@@ -965,9 +928,10 @@ vector<double> Elbow_Position(double armAng, double R)
   vector<double> vec_tmp_5 = Vector_addition(vec_tmp_4, pc);              // ... + pc
   vector<double> vec_tmp_6 = Vector_addition(vec_tmp_5, p_shoulder);      //... + p_shoudler
 
-  // cout << "Elbow position (X,Y,Z) [mm]: [" << vec_tmp_6.at(0) << " " << vec_tmp_6.at(1) << " " << vec_tmp_6.at(2)
-  // <<
-  // "]" << endl; cout << "-------------------------------------" << endl;
+  // cout << "Elbow position (X,Y,Z) [mm]: [" << vec_tmp_6.at(0) << " " << vec_tmp_6.at(1) << " " << vec_tmp_6.at(2) <<
+  // "]"
+  //      << endl;
+  // cout << "-------------------------------------" << endl;
 
   return vec_tmp_6;
 }

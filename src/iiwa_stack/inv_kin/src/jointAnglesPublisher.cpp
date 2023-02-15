@@ -253,31 +253,9 @@ bool publishNewEEF(ros::Publisher jointAnglesPublisher, ros::Publisher xyzPublis
   float* jointAngles = new float[7];
 
   // fixForStick(xPosition, yPosition, zPosition, eefPhiOrientation, eefThetaOrientation);
+  cout << "HELLO: " << armAngle << endl;
   if (inv_kin_kuka(xPosition, yPosition, zPosition, eefPhiOrientation, eefThetaOrientation, armAngle, jointAngles))
   {
-    // safety
-    //  if (abs(jointAngles[0]) > 165 || abs(jointAngles[1]) > 115 || abs(jointAngles[2]) > 165 ||
-    //       abs(jointAngles[3]) > 115 || abs(jointAngles[4]) > 165 || abs(jointAngles[5]) > 115 ||
-    //       abs(jointAngles[6]) > 170)
-    //   {
-    //     ROS_INFO("DID NOT SEND ANGLES - SAFETY");
-
-    //     return false;
-    //   }
-
-    // ofstream outputFile;
-    // outputFile.open("test.txt", ios::app);
-
-    // for (int i = 0; i < 7; i++)
-    // {
-    //   outputFile << jointAngles[i];
-    //   if (i != 6)
-    //   {
-    //     outputFile << ", ";
-    //   }
-    // }
-    // outputFile << endl;
-
     messageArray.data.clear();
 
     iiwa_msgs::JointPosition jointPosition;
@@ -877,7 +855,6 @@ bool inv_kin_kuka(double X, double Y, double Z, double eef_phi, double eef_theta
            abs(phi5) >= phi5_max | abs(phi6) >= phi6_max | abs(phi7) >= phi7_max)
   {
     armAng = adapt_elbow_position(X, Y, Z, eef_phi, eef_theta, armAng_in);
-    armAngle = armAng;
 
     // return false;
   }
@@ -1067,13 +1044,9 @@ void inv_kin_kuka_angle_calc(double X, double Y, double Z, double eef_phi, doubl
 
   double psw_length = sqrt(pow(psw.at(0), 2) + pow(psw.at(1), 2) + pow(psw.at(2), 2));
 
-  cout << "psw_length: " << psw_length << endl;
-
   // double pc_length = sqrt(pow(pc.at(0), 2) + pow(pc.at(1), 2) + pow(pc.at(2), 2));
 
   double pc_length = abs(420.0 * (pow(400.0, 2) - pow(420.0, 2) - pow(psw_length, 2)) / (840.0 * psw_length));
-
-  cout << "after: " << pc_length << endl;
 
   pc = Vector_division(psw, (psw_length / pc_length));
 
@@ -1376,7 +1349,9 @@ vector<double> Elbow_Position(double armAng, double R)
   vector<double> vec_tmp_6 = Vector_addition(vec_tmp_5, p_shoulder);      //... + p_shoudler
 
   // cout << "Elbow position (X,Y,Z) [mm]: [" << vec_tmp_6.at(0) << " " << vec_tmp_6.at(1) << " " << vec_tmp_6.at(2) <<
-  // "]" << endl; cout << "-------------------------------------" << endl;
+  // "]"
+  //      << endl;
+  // cout << "-------------------------------------" << endl;
 
   return vec_tmp_6;
 }
