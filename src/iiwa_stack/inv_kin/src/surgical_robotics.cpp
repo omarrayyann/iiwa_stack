@@ -135,13 +135,6 @@ vector<double> Vector_multi(vector<double> input_vector, double value);
 vector<double> Vector_cross(vector<double> input_vector, vector<double> input_vector2);
 double Vector_scalar(vector<double> input_vector, vector<double> input_vector2);
 vector<double> Elbow_Position(double armAng, double R);
-void init_udp();
-void die(char* s);
-vector<string> split(string s, string delimiter);
-string removeSpaces(string s);
-vector<vector<float>> get_point(int index);
-vector<vector<float>> mul3d(vector<vector<float>> a, vector<vector<float>> b);
-vector<vector<float>> mul(vector<vector<float>> a, vector<vector<float>> b);
 vector<float> startingPosition;
 vector<float> touch_origin;
 float xPosition, yPosition, zPosition, eefPhiOrientation, eefThetaOrientation, armAngle;
@@ -163,7 +156,6 @@ bool publishNewEEF(ros::Publisher jointAnglesPublisher, ros::Publisher xyzPublis
   std_msgs::Float32MultiArray messageArray;
   float* jointAngles = new float[7];
 
-  // fixForStick(xPosition, yPosition, zPosition, eefPhiOrientation, eefThetaOrientation);
   if (inv_kin_kuka(xPosition, yPosition, zPosition, eefPhiOrientation, eefThetaOrientation, armAngle, jointAngles))
   {
     // safety
@@ -220,19 +212,8 @@ bool publishNewEEF(ros::Publisher jointAnglesPublisher, ros::Publisher xyzPublis
   }
 }
 
-void fixForStick(float& xPosition, float& yPosition, float& zPosition, float eefPhiOrientation,
-                 float eefThetaOrientation)
-{
-  float eefThetaOrientationRadians = eefThetaOrientation * deg2rad;
-  float eefPhiOrientationRadians = eefPhiOrientation * deg2rad;
-  xPosition += stickLength * sin(-eefThetaOrientationRadians) * cos(eefPhiOrientationRadians - (M_PI / 2));
-  yPosition += stickLength * sin(-eefThetaOrientationRadians) * sin(eefPhiOrientationRadians - (M_PI / 2));
-  zPosition += stickLength * cos(-eefThetaOrientationRadians);
-}
-
 void moved_kuka(const iiwa_msgs::JointPosition msg)
 {
-  cout << "here" << endl;
   angles.clear();
   angles.push_back(0);
   angles.push_back(msg.position.a1);
@@ -248,6 +229,8 @@ void moved_kuka(const iiwa_msgs::JointPosition msg)
   q << msg.position.a1, msg.position.a2, msg.position.a3, msg.position.a4, msg.position.a5, msg.position.a6,
       msg.position.a7;
 
+  FKResult fkResult = manip.fk(q);
+
   currentX = manip.fk(q).htmTool(0, 3);
   currentY = manip.fk(q).htmTool(1, 3);
   currentZ = manip.fk(q).htmTool(2, 3);
@@ -259,6 +242,51 @@ void moved_kuka(const iiwa_msgs::JointPosition msg)
   currentPhi = (atan2(y_diff, x_diff)) * 180 / M_PI;
 
   currentTheta = acos(z_diff) * 180 / M_PI;
+
+  vector<double> position_elbow_2 = {manip.fk(q).htmDH[2](0, 3), manip.fk(q).htmDH[2](1, 3),
+                                     manip.fk(q).htmDH[2](2, 3)};
+  vector<double> position_shoulder_2 = {manip.fk(q).htmDH[0](0, 3), manip.fk(q).htmDH[0](1, 3),
+                                        manip.fk(q).htmDH[0](2, 3)};
+
+  // psw
+  vector<double> shoulder_to_wrist = {manip.fk(q).htmDH[4](0, 3), manip.fk(q).htmDH[4](1, 3),
+                                      manip.fk(q).htmDH[4](2, 3)};
+
+  double psw_length_2 =
+      sqrt(pow(shoulder_to_wrist.at(0), 2) + pow(shoulder_to_wrist.at(1), 2) + pow(shoulder_to_wrist.at(2), 2));
+
+  double pc_length_2 = abs(420.0 * (pow(400.0, 2) - pow(420.0, 2) - pow(psw_length_2, 2)) / (840.0 * psw_length_2));
+
+  vector<double> pc_2 = Vector_division(psw, (psw_length_2 / pc_length_2));
+
+  double alpha_2 = asin(pc_length_2 / d_se);
+  double alpha2_2 = (alpha_2 * 180) / pi;
+  double R_2 = cos(alpha_2) * d_se;
+
+  vector<double> pc_unit_2 =
+      Vector_division(pc_2, (sqrt(pow(pc_2.at(0), 2) + pow(pc_2.at(1), 2) + pow(pc_2.at(2), 2))));
+  vector<double> zero_axis_2 = {1, 0, 0};  // arbitrary axis a, (here ArmAngle = 0)
+
+  double u_tmp_2 = Vector_scalar(zero_axis_2, pc_unit_2);
+  vector<double> vec_u_tmp_1_2 = Vector_multi(pc_unit_2, u_tmp_2);
+  vector<double> vec_u_tmp_2_2 = Vector_substraction(zero_axis_2, vec_u_tmp_1_2);
+  double vec_u_tmp_len_2 =
+      sqrt(pow(vec_u_tmp_2_2.at(0), 2) + pow(vec_u_tmp_2_2.at(1), 2) + pow(vec_u_tmp_2_2.at(2), 2));
+  vector<double> vec_u_2 = Vector_division(vec_u_tmp_2_2, vec_u_tmp_len_2);
+
+  vector<double> vec_v_2 = Vector_cross(vec_u_2, pc);
+  double vec_b_length_2 = sqrt(pow(vec_v_2.at(0), 2) + pow(vec_v_2.at(1), 2) + pow(vec_v_2.at(2), 2));
+  vec_v_2 = Vector_division(vec_v_2, vec_b_length_2);  // unit vector
+
+  float x_first = position_elbow_2.at(0) - pc_2.at(0) - position_shoulder_2.at(0);
+  float y_first = position_elbow_2.at(1) - pc_2.at(1) - position_shoulder_2.at(1);
+  float z_first = position_elbow_2.at(2) - pc_2.at(2) - position_shoulder_2.at(2);
+
+  float arm_angle_computed =
+      acos(x_first / pow(pow(vec_v_2.at(0), 2) + pow(vec_u_2.at(0), 2), 0.5)) + atan2(vec_v_2.at(0) / vec_u_2.at(0));
+
+  cout << "ARM ANGLE COMPUTED: " << arm_angle_computed * 180 / M_PI << endl;
+  ;
 }
 
 void moved_touch_joints(const sensor_msgs::JointState msg)
@@ -401,18 +429,6 @@ int main(int argc, char* argv[])
     }
   }
   sub4 = n.subscribe("/phantom/joint_states", 1000, moved_touch_joints);
-
-  // cout << "   Move the KUKA robot to the initial position, hit enter to confirm position ";
-  // ros::Subscriber sub2 = n.subscribe("/iiwa/state/JointPosition", 1000, moved_kuka);
-  // ros::Subscriber sub4 = n.subscribe("/phantom/joint_states", 1000, moved_touch_joints);
-
-  // char c = getch();
-  // ros::spinOnce();
-  // startingPosition.push_back(currentX);
-  // startingPosition.push_back(currentY);
-  // startingPosition.push_back(currentZ);
-  // startingPosition.push_back(currentPhi);
-  // startingPosition.push_back(currentTheta);
 
   cout << endl << endl << "   KUKA Starting Position Set as: " << endl;
 
@@ -954,218 +970,4 @@ vector<double> Elbow_Position(double armAng, double R)
   // "]" << endl; cout << "-------------------------------------" << endl;
 
   return vec_tmp_6;
-}
-
-vector<string> split(string s, string delimiter)
-{
-  size_t pos_start = 0, pos_end, delim_len = delimiter.length();
-  string token;
-  vector<string> res;
-
-  while ((pos_end = s.find(delimiter, pos_start)) != string::npos)
-  {
-    token = s.substr(pos_start, pos_end - pos_start);
-    pos_start = pos_end + delim_len;
-    res.push_back(token);
-  }
-
-  res.push_back(s.substr(pos_start));
-  return res;
-}
-
-string removeSpaces(string s)
-{
-  string newS = "";
-  for (int i = 0; i < s.length(); i++)
-  {
-    if (s[i] != ' ')
-    {
-      newS += s[i];
-    }
-  }
-  return newS;
-}
-
-vector<vector<float>> mul(vector<vector<float>> a, vector<vector<float>> b)
-{
-  vector<vector<float>> answer;
-
-  vector<float> temp;
-
-  temp.resize(4, 0.0);
-
-  answer.resize(4, temp);
-
-  for (int i = 0; i < 4; ++i)
-  {
-    for (int j = 0; j < 4; ++j)
-    {
-      for (int k = 0; k < 4; ++k)
-      {
-        answer[i][j] += a[i][k] * b[k][j];
-      }
-    }
-  }
-
-  return answer;
-}
-
-vector<vector<float>> mul3d(vector<vector<float>> a, vector<vector<float>> b)
-{
-  vector<vector<float>> answer;
-
-  vector<float> temp;
-
-  temp.resize(3, 0.0);
-
-  answer.resize(3, temp);
-
-  for (int i = 0; i < 3; ++i)
-  {
-    for (int j = 0; j < 3; ++j)
-    {
-      for (int k = 0; k < 3; ++k)
-      {
-        answer[i][j] += a[i][k] * b[k][j];
-      }
-    }
-  }
-
-  return answer;
-}
-
-vector<vector<float>> get_point(int index)
-{
-  vector<vector<float>> T01 = {
-
-      {cos(angles.at(1)), 0, -sin(angles.at(1)), 0},
-
-      {sin(angles.at(1)), 0, cos(angles.at(1)), 0},
-
-      {0, -1, 0, d_bs},
-
-      {0, 0, 0, 1},
-
-  };
-
-  vector<vector<float>> T12 = {
-
-      {cos(angles.at(2)), 0, sin(angles.at(2)), 0},
-
-      {sin(angles.at(2)), 0, -cos(angles.at(2)), 0},
-
-      {0, 1, 0, 0},
-
-      {0, 0, 0, 1},
-
-  };
-
-  vector<vector<float>> T23 = {
-
-      {cos(angles.at(3)), 0, sin(angles.at(3)), 0},
-
-      {sin(angles.at(3)), 0, -cos(angles.at(3)), 0},
-
-      {0, 1, 0, d_se},
-
-      {0, 0, 0, 1},
-
-  };
-
-  vector<vector<float>> T34 = {
-
-      {cos(angles.at(4)), 0, -sin(angles.at(4)), 0},
-
-      {sin(angles.at(4)), 0, cos(angles.at(4)), 0},
-
-      {0, -1, 0, 0},
-
-      {0, 0, 0, 1},
-
-  };
-
-  vector<vector<float>> T45 = {
-
-      {cos(angles.at(5)), 0, -sin(angles.at(5)), 0},
-
-      {sin(angles.at(5)), 0, cos(angles.at(5)), 0},
-
-      {0, -1, 0, d_ew},
-
-      {0, 0, 0, 1},
-
-  };
-
-  vector<vector<float>> T56 = {
-
-      {cos(angles.at(6)), 0, sin(angles.at(6)), 0},
-
-      {sin(angles.at(6)), 0, -cos(angles.at(6)), 0},
-
-      {0, 1, 0, 0},
-
-      {0, 0, 0, 1},
-
-  };
-
-  vector<vector<float>> T67 = {
-
-      {cos(angles.at(7)), -sin(angles.at(7)), 0, 0},
-
-      {sin(angles.at(7)), cos(angles.at(7)), 0, 0},
-
-      {0, 0, 1, d_wf},
-
-      {0, 0, 0, 1},
-
-  };
-
-  if (index == 1)
-  {
-    return T01;
-  }
-
-  vector<vector<float>> ans1 = mul(T01, T12);
-
-  if (index == 2)
-  {
-    return ans1;
-  }
-
-  vector<vector<float>> ans2 = mul(ans1, T23);
-
-  if (index == 3)
-  {
-    return ans2;
-  }
-
-  vector<vector<float>> ans3 = mul(ans2, T34);
-
-  if (index == 4)
-  {
-    return ans3;
-  }
-
-  vector<vector<float>> ans4 = mul(ans3, T45);
-
-  if (index == 5)
-  {
-    return ans4;
-  }
-
-  vector<vector<float>> ans5 = mul(ans4, T56);
-
-  if (index == 6)
-  {
-    return ans5;
-  }
-
-  vector<vector<float>> ans6 = mul(ans5, T67);
-
-  if (index == 7)
-  {
-    return ans6;
-  }
-
-  return ans6;
 }
