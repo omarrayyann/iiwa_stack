@@ -120,6 +120,7 @@ vector<vector<float>> points;
 int pointIndex = 0;
 ros::Publisher pub;
 ros::Publisher pub2;
+int option;
 
 // Functions Prototypes
 bool inv_kin_kuka(double X, double Y, double Z, double eef_phi, double eef_theta, double armAng_in, float* jointAngles);
@@ -212,6 +213,12 @@ bool publishNewEEF(ros::Publisher jointAnglesPublisher, ros::Publisher xyzPublis
   }
 }
 
+VectorXd touch_corrected_unit_vector(3);
+
+VectorXd kuka_corrected_unit_vector(3);
+float kuka_theta_initial;
+float kuka_phi_initial;
+bool first = true;
 void moved_kuka(const iiwa_msgs::JointPosition msg)
 {
   angles.clear();
@@ -242,6 +249,14 @@ void moved_kuka(const iiwa_msgs::JointPosition msg)
   currentPhi = (M_PI + atan2(y_diff, x_diff)) * 180 / M_PI;
 
   currentTheta = acos(z_diff) * 180 / M_PI;
+
+  if (first)
+  {
+    kuka_corrected_unit_vector << x_diff, y_diff, z_diff;
+    first = false;
+    kuka_phi_initial = currentPhi;
+    kuka_theta_initial = currentTheta;
+  }
 
   vector<double> position_elbow_2 = {1000 * manip.fk(q).htmDH[2](0, 3), 1000 * manip.fk(q).htmDH[2](1, 3),
                                      1000 * manip.fk(q).htmDH[2](2, 3)};
@@ -310,15 +325,17 @@ void moved_touch_joints(const sensor_msgs::JointState msg)
 
   unit_vector *= -1;
 
-  VectorXd corrected_unit_vector = Utils::rotz(-M_PI / 2) * Utils::rotx(M_PI / 2) * unit_vector;
+  touch_corrected_unit_vector = Utils::rotz(-M_PI / 2) * Utils::rotx(M_PI / 2) * unit_vector;
 
-  float x_diff = corrected_unit_vector[0];
-  float y_diff = corrected_unit_vector[1];
-  float z_diff = corrected_unit_vector[2];
+  float x_diff = touch_corrected_unit_vector[0];
+  float y_diff = touch_corrected_unit_vector[1];
+  float z_diff = touch_corrected_unit_vector[2];
 
   final_phi = (M_PI + atan2(y_diff, x_diff)) * 180 / M_PI;
   final_theta = acos(z_diff) * 180 / M_PI;
 }
+
+VectorXd initial_unit_vector;
 
 void moved_touch(const geometry_msgs::PoseStamped msg)
 {
@@ -333,6 +350,8 @@ void moved_touch(const geometry_msgs::PoseStamped msg)
     touch_origin.push_back(z_pos);
     touch_origin.push_back(final_phi);
     touch_origin.push_back(final_theta);
+    initial_unit_vector = kuka_corrected_unit_vector;
+
     cout << "   Touch 3D Starting Position Set as:" << endl;
     cout << "   X: " << 1000 * touch_origin.at(0) << endl;
     cout << "   Y: " << 1000 * touch_origin.at(1) << endl;
@@ -344,20 +363,50 @@ void moved_touch(const geometry_msgs::PoseStamped msg)
   }
   else
   {
-    float x_dif = 1000 * (x_pos - touch_origin.at(0));
-    float y_dif = 1000 * (y_pos - touch_origin.at(1));
-    float z_dif = 1000 * (z_pos - touch_origin.at(2));
-    x_dif /= 2;
-    y_dif /= 2;
-    z_dif /= 2;
+    if (option == 1)
+    {
+      float z_dif_temp = 1000 * (z_pos - touch_origin.at(2));
 
-    // publishNewEEF(pub, pub2, y_dif + startingPosition.at(0), -x_dif + startingPosition.at(1),
-    //               z_dif + startingPosition.at(2), final_phi, final_theta, armAngle);
+      cout << "z_diff_temp: " << z_dif_temp << endl;
+      cout << "unit vector: " << kuka_corrected_unit_vector << endl;
+
+      VectorXd move_by = kuka_corrected_unit_vector * -1 * z_dif_temp * 0.5;
+
+      float x_dif = move_by[0];
+      float y_dif = move_by[1];
+      float z_dif = move_by[2];
+
+      publishNewEEF(pub, pub2, x_dif + startingPosition.at(0), y_dif + startingPosition.at(1),
+                    z_dif + startingPosition.at(2), kuka_phi_initial, kuka_theta_initial, armAngle);
+    }
+    else
+    {
+      float x_dif = 1000 * (x_pos - touch_origin.at(0));
+      float y_dif = 1000 * (y_pos - touch_origin.at(1));
+      float z_dif = 1000 * (z_pos - touch_origin.at(2));
+      x_dif /= 2;
+      y_dif /= 2;
+      z_dif /= 2;
+      publishNewEEF(pub, pub2, y_dif + startingPosition.at(0), -x_dif + startingPosition.at(1),
+                    z_dif + startingPosition.at(2), final_phi, final_theta, armAngle);
+    }
   }
 }
 
 int main(int argc, char* argv[])
 {
+  cout << "    ____                  _           _   ____       _           _   _" << endl;
+  cout << "   / ___| _   _ _ __ __ _(_) ___ __ _| | |  _ \\ ___ | |__   ___ | |_(_) ___ ___" << endl;
+  cout << "   \\___ \\| | | | '__/ _` | |/ __/ _` | | | |_) / _ \\| '_ \\ / _ \\| __| |/ __/ __| " << endl;
+  cout << "    ___) | |_| | | | (_| | | (_| (_| | | |  _ < (_) | |_) | (_) | |_| | (__\\__ \\ " << endl;
+  cout << "   |____/ \\__,_|_|  \\__, |_|\\___\\__,_|_| |_| \\_\\___/|_.__/ \\___/ \\__|_|\\___|___/ " << endl;
+  cout << "                    |___/                                    1.0 by omar rayyan" << endl;
+  cout << endl << endl << endl;
+
+  cout << "   1: Fixed Fulcrum Point Motion" << endl;
+  cout << "   2: Free Motion" << endl;
+  cin >> option;
+
   ros::init(argc, argv, "surgical_roboitcs");
   ros::NodeHandle n;
   pub = n.advertise<iiwa_msgs::JointPosition>("/iiwa/command/JointPosition", 100000);
@@ -369,18 +418,11 @@ int main(int argc, char* argv[])
 
   clrscr();
 
-  cout << "    ____                  _           _   ____       _           _   _" << endl;
-  cout << "   / ___| _   _ _ __ __ _(_) ___ __ _| | |  _ \\ ___ | |__   ___ | |_(_) ___ ___" << endl;
-  cout << "   \\___ \\| | | | '__/ _` | |/ __/ _` | | | |_) / _ \\| '_ \\ / _ \\| __| |/ __/ __| " << endl;
-  cout << "    ___) | |_| | | | (_| | | (_| (_| | | |  _ < (_) | |_) | (_) | |_| | (__\\__ \\ " << endl;
-  cout << "   |____/ \\__,_|_|  \\__, |_|\\___\\__,_|_| |_| \\_\\___/|_.__/ \\___/ \\__|_|\\___|___/ " << endl;
-  cout << "                    |___/                                    1.0 by omar rayyan" << endl;
-  cout << endl << endl << endl;
   cout << "   Move the KUKA robot to the initial position, hit enter to confirm position ";
   ros::Subscriber sub2 = n.subscribe("/iiwa/state/JointPosition", 1000, moved_kuka);
   ros::Subscriber sub4 = n.subscribe("/phantom/joint_states", 100000, moved_touch_joints);
-
   char c = getch();
+  c = getch();
   ros::spinOnce();
   startingPosition.push_back(currentX);
   startingPosition.push_back(currentY);
@@ -406,6 +448,7 @@ int main(int argc, char* argv[])
   cout << endl << endl;
 
   ros::Subscriber sub = n.subscribe("/phantom/pose", 1000, moved_touch);
+
   ros::Rate loop_rate(100);
   // armAngle = -218.4;
   // publishNewEEF(pub, pub2, startingPosition.at(0), startingPosition.at(1), startingPosition.at(2),
@@ -928,7 +971,8 @@ vector<double> Elbow_Position(double armAng, double R)
   vector<double> vec_tmp_5 = Vector_addition(vec_tmp_4, pc);              // ... + pc
   vector<double> vec_tmp_6 = Vector_addition(vec_tmp_5, p_shoulder);      //... + p_shoudler
 
-  // cout << "Elbow position (X,Y,Z) [mm]: [" << vec_tmp_6.at(0) << " " << vec_tmp_6.at(1) << " " << vec_tmp_6.at(2) <<
+  // cout << "Elbow position (X,Y,Z) [mm]: [" << vec_tmp_6.at(0) << " " << vec_tmp_6.at(1) << " " << vec_tmp_6.at(2)
+  // <<
   // "]"
   //      << endl;
   // cout << "-------------------------------------" << endl;
