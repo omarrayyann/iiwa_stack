@@ -239,7 +239,7 @@ void moved_kuka(const iiwa_msgs::JointPosition msg)
   float y_diff = 1000 * (manip.fk(q).htmTool(1, 3) - manip.fk(q).htmDH[4](1, 3)) / d_wf;
   float z_diff = 1000 * (manip.fk(q).htmTool(2, 3) - manip.fk(q).htmDH[4](2, 3)) / d_wf;
 
-  currentPhi = (atan2(y_diff, x_diff)) * 180 / M_PI;
+  currentPhi = (M_PI + atan2(y_diff, x_diff)) * 180 / M_PI;
 
   currentTheta = acos(z_diff) * 180 / M_PI;
 
@@ -351,8 +351,8 @@ void moved_touch(const geometry_msgs::PoseStamped msg)
     y_dif /= 2;
     z_dif /= 2;
 
-    publishNewEEF(pub, pub2, y_dif + startingPosition.at(0), -x_dif + startingPosition.at(1),
-                  z_dif + startingPosition.at(2), final_phi, final_theta, armAngle);
+    // publishNewEEF(pub, pub2, y_dif + startingPosition.at(0), -x_dif + startingPosition.at(1),
+    //               z_dif + startingPosition.at(2), final_phi, final_theta, armAngle);
   }
 }
 
@@ -407,9 +407,9 @@ int main(int argc, char* argv[])
 
   ros::Subscriber sub = n.subscribe("/phantom/pose", 1000, moved_touch);
   ros::Rate loop_rate(100);
-  armAngle = -218.4;
-  publishNewEEF(pub, pub2, startingPosition.at(0), startingPosition.at(1), startingPosition.at(2),
-                startingPosition.at(3), startingPosition.at(4), armAngle);
+  // armAngle = -218.4;
+  // publishNewEEF(pub, pub2, startingPosition.at(0), startingPosition.at(1), startingPosition.at(2),
+  //               startingPosition.at(3), startingPosition.at(4), armAngle);
 
   while (ros::ok())
   {
