@@ -290,6 +290,12 @@ bool publishNewEEF(ros::Publisher jointAnglesPublisher, ros::Publisher xyzPublis
   }
 }
 
+bool goToRequired(ros::Publisher jointAnglesPublisher, ros::Publisher publisher2)
+
+{
+  publishNewEEF(jointAnglesPublisher, publisher2, 442.3, -91.359, 136.272, 108.282, 159.873, 145.648);
+}
+
 bool goToZero(ros::Publisher jointAnglesPublisher)
 {
   std_msgs::Float32MultiArray messageArray;
@@ -331,6 +337,7 @@ void printCommands()
   cout << "8: Mechanical Zero Position" << endl;
   cout << "10: KUKA CONTROLLER" << endl;
   cout << "11: Touch 3D (Place in Origin Before Starting)" << endl;
+  cout << "15: Required" << endl;
 
   cout << "Command: ";
 }
@@ -549,6 +556,11 @@ int main(int argc, char* argv[])
     if (commandPicked == "8")
     {
       goToZero(pub);
+    }
+
+    else if (commandPicked == "15")
+    {
+      goToRequired(pub, pub2);
     }
 
     else if (commandPicked == "1")

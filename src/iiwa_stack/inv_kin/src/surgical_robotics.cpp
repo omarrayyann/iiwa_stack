@@ -379,6 +379,49 @@ void moved_touch(const geometry_msgs::PoseStamped msg)
       publishNewEEF(pub, pub2, x_dif + startingPosition.at(0), y_dif + startingPosition.at(1),
                     z_dif + startingPosition.at(2), kuka_phi_initial, kuka_theta_initial, armAngle);
     }
+    else if (option == 2)
+    {
+      float x_dif = 1000 * (x_pos - touch_origin.at(0));
+      float y_dif = 1000 * (y_pos - touch_origin.at(1));
+      float z_dif = 1000 * (z_pos - touch_origin.at(2));
+
+      cout << "x_dif: " << x_dif << endl;
+      cout << "y_dif: " << y_dif << endl;
+      cout << "z_dif: " << z_dif << endl;
+
+      // x_dif /= 3;
+      // y_dif /= 3;
+      // z_dif /= 3;
+
+      vector<float> fulcrum_to_eef_vector = {y_dif, -1 * x_dif, z_dif};
+
+      cout << "fulcrum_to_eef_vector.at(0): " << fulcrum_to_eef_vector.at(0) << endl;
+      cout << "fulcrum_to_eef_vector.at(1): " << fulcrum_to_eef_vector.at(1) << endl;
+      cout << "fulcrum_to_eef_vector.at(2): " << fulcrum_to_eef_vector.at(2) << endl;
+      float fulcrum_to_eef_length = sqrt(pow(fulcrum_to_eef_vector.at(0), 2) + pow(fulcrum_to_eef_vector.at(1), 2) +
+                                         pow(fulcrum_to_eef_vector.at(2), 2));
+      cout << "fulcrum_to_eef_length: " << fulcrum_to_eef_length << endl;
+
+      // equivelent to the unit vector of the fulctum to eef vector and it is the unique orientation therough the
+      // fulcrum point
+      vector<float> unit_vector_required = {fulcrum_to_eef_vector.at(0) / fulcrum_to_eef_length,
+                                            fulcrum_to_eef_vector.at(1) / fulcrum_to_eef_length,
+                                            fulcrum_to_eef_vector.at(2) / fulcrum_to_eef_length};
+
+      float phi_required = (M_PI + atan2(unit_vector_required.at(1), unit_vector_required.at(0))) * 180 / M_PI;
+      float theta_required = acos(unit_vector_required.at(2)) * 180 / M_PI;
+
+      cout << endl
+           << "UNIT VECTOR REQUIRED: " << unit_vector_required.at(0) << " " << unit_vector_required.at(1) << " "
+           << unit_vector_required.at(2);
+      cout << "fulcrum_to_eef_length: " << fulcrum_to_eef_length << endl;
+
+      cout << "PHI REQUIRED: " << phi_required << endl;
+      cout << "THETA REQUIRED: " << theta_required << endl;
+
+      publishNewEEF(pub, pub2, y_dif + startingPosition.at(0), -x_dif + startingPosition.at(1),
+                    z_dif + startingPosition.at(2), phi_required, theta_required, armAngle);
+    }
     else
     {
       float x_dif = 1000 * (x_pos - touch_origin.at(0));
@@ -403,8 +446,9 @@ int main(int argc, char* argv[])
   cout << "                    |___/                                    1.0 by omar rayyan" << endl;
   cout << endl << endl << endl;
 
-  cout << "   1: Fixed Fulcrum Point Motion" << endl;
-  cout << "   2: Free Motion" << endl;
+  cout << "   1: Fixed Fulcrum Point Motion (Fixed Orientation)" << endl;
+  cout << "   2: Fixed Fulcrum Point Motion (Non-Fixed Orientation)" << endl;
+  cout << "   3: Free Motion" << endl;
   cin >> option;
 
   ros::init(argc, argv, "surgical_roboitcs");
@@ -431,14 +475,26 @@ int main(int argc, char* argv[])
   startingPosition.push_back(currentTheta);
   startingPosition.push_back(armAngle);
 
-  cout << endl << endl << "   KUKA Starting Position Set as: " << endl;
-
-  cout << "   X: " << startingPosition.at(0) << endl;
-  cout << "   Y: " << startingPosition.at(1) << endl;
-  cout << "   Z: " << startingPosition.at(2) << endl;
-  cout << "   Phi: " << startingPosition.at(3) << endl;
-  cout << "   Theta: " << startingPosition.at(4) << endl;
-  cout << "   Arm Angle: " << armAngle << endl;
+  if (option == 2)
+  {
+    cout << endl << endl << "   Fulcrum Point Set as: " << endl;
+    cout << "   X: " << startingPosition.at(0) << endl;
+    cout << "   Y: " << startingPosition.at(1) << endl;
+    cout << "   Z: " << startingPosition.at(2) << endl;
+    cout << endl << endl << "   Initial Orientation: " << endl;
+    cout << "   Phi: " << startingPosition.at(3) << endl;
+    cout << "   Theta: " << startingPosition.at(4) << endl;
+  }
+  else
+  {
+    cout << endl << endl << "   KUKA Starting Position Set as: " << endl;
+    cout << "   X: " << startingPosition.at(0) << endl;
+    cout << "   Y: " << startingPosition.at(1) << endl;
+    cout << "   Z: " << startingPosition.at(2) << endl;
+    cout << "   Phi: " << startingPosition.at(3) << endl;
+    cout << "   Theta: " << startingPosition.at(4) << endl;
+    cout << "   Arm Angle: " << armAngle << endl;
+  }
 
   cout << endl;
 
