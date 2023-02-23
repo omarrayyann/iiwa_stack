@@ -445,18 +445,14 @@ void moved_touch(const geometry_msgs::PoseStamped msg)
       float y_dif = move_by[1];
       float z_dif = move_by[2];
 
-      publishNewEEF(pub, pub2, x_dif + startingPosition.at(0), y_dif + startingPosition.at(1),
-                    z_dif + startingPosition.at(2), kuka_phi_initial, kuka_theta_initial, armAngle);
+      publishNewEEF_trials(pub, pub2, x_dif + startingPosition.at(0), y_dif + startingPosition.at(1),
+                           z_dif + startingPosition.at(2), kuka_phi_initial, kuka_theta_initial);
     }
     else if (option == 2)
     {
       float x_dif = 1000 * (x_pos - touch_origin.at(0));
       float y_dif = 1000 * (y_pos - touch_origin.at(1));
       float z_dif = 1000 * (z_pos - touch_origin.at(2));
-
-      x_dif /= 2;
-      y_dif /= 2;
-      z_dif /= 2;
 
       vector<float> fulcrum_to_eef_vector = {y_dif, -1 * x_dif, z_dif};
 
@@ -480,10 +476,9 @@ void moved_touch(const geometry_msgs::PoseStamped msg)
       float x_dif = 1000 * (x_pos - touch_origin.at(0));
       float y_dif = 1000 * (y_pos - touch_origin.at(1));
       float z_dif = 1000 * (z_pos - touch_origin.at(2));
-      // x_dif /= 2;
-      // y_dif /= 2;
-      // z_dif /= 2;
-      armAngle = armAng;
+      x_dif *= 2;
+      y_dif *= 2;
+      z_dif *= 2;
       publishNewEEF_trials(pub, pub2, y_dif + startingPosition.at(0), -x_dif + startingPosition.at(1),
                            z_dif + startingPosition.at(2), final_phi, final_theta);
     }
@@ -689,7 +684,7 @@ bool updated_inv_kin_kuka(double X, double Y, double Z, double eef_phi, double e
     float phi7_diff = phi7 - phi7_old_min;
     double phi_diff_minus = abs(phi1 - phi1_old) + abs(phi2 - phi2_old) + abs(phi3 - phi3_old) + abs(phi4 - phi4_old) +
                             abs(phi5 - phi5_old) + abs(phi6 - phi6_old) + abs(phi7 - phi7_old);
-    if (phi_diff_minus < 5)
+    if (phi_diff_minus < 4)
     {
       skip_next = true;
       hasSolution = true;
