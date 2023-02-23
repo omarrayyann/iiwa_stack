@@ -137,6 +137,7 @@ vector<double> Vector_multi(vector<double> input_vector, double value);
 vector<double> Vector_cross(vector<double> input_vector, vector<double> input_vector2);
 double Vector_scalar(vector<double> input_vector, vector<double> input_vector2);
 vector<double> Elbow_Position(double armAng, double R);
+bool updated_inv_kin_kuka(double X, double Y, double Z, double eef_phi, double eef_theta, float* jointAngles);
 vector<float> startingPosition;
 vector<float> touch_origin;
 float xPosition, yPosition, zPosition, eefPhiOrientation, eefThetaOrientation, armAngle;
@@ -200,6 +201,66 @@ bool publishNewEEF(ros::Publisher jointAnglesPublisher, ros::Publisher xyzPublis
     testing[0] = (float)manip.fk(q).htmTool(0, 2);
     testing[1] = (float)manip.fk(q).htmTool(1, 2);
     testing[2] = (float)manip.fk(q).htmTool(2, 2);
+
+    jointPosition.position = quantity;
+
+    jointAnglesPublisher.publish(jointPosition);
+    messageArray.data.clear();
+    messageArray.data = {xPosition, yPosition, zPosition};
+
+    xyzPublisher.publish(messageArray);
+
+    delete[] jointAngles;
+    return true;
+  }
+  else
+  {
+    ROS_INFO("Could not come up with joint angles required");
+    delete[] jointAngles;
+
+    return false;
+  }
+}
+
+bool publishNewEEF_trials(ros::Publisher jointAnglesPublisher, ros::Publisher xyzPublisher, float xPosition,
+                          float yPosition, float zPosition, float eefPhiOrientation, float eefThetaOrientation)
+{
+  if (zPosition <= 42)
+  {
+    ROS_INFO("DID NOT SEND ANGLES - SAFETY");
+
+    return false;
+  }
+
+  std_msgs::Float32MultiArray messageArray;
+  float* jointAngles = new float[7];
+
+  if (updated_inv_kin_kuka(xPosition, yPosition, zPosition, eefPhiOrientation, eefThetaOrientation, jointAngles))
+  {
+    // safety
+
+    if (abs(jointAngles[0]) > 165 || abs(jointAngles[1]) > 115 || abs(jointAngles[2]) > 165 ||
+        abs(jointAngles[3]) > 115 || abs(jointAngles[4]) > 165 || abs(jointAngles[5]) > 115 ||
+        abs(jointAngles[6]) > 170)
+    {
+      ROS_INFO("DID NOT SEND ANGLES - SAFETY");
+
+      return false;
+    }
+
+    messageArray.data.clear();
+
+    iiwa_msgs::JointPosition jointPosition;
+
+    iiwa_msgs::JointQuantity quantity;
+
+    quantity.a1 = jointAngles[0] * M_PI / 180;
+    quantity.a2 = jointAngles[1] * M_PI / 180;
+    quantity.a3 = jointAngles[2] * M_PI / 180;
+    quantity.a4 = jointAngles[3] * M_PI / 180;
+    quantity.a5 = jointAngles[4] * M_PI / 180;
+    quantity.a6 = jointAngles[5] * M_PI / 180;
+    quantity.a7 = jointAngles[6] * M_PI / 180;
 
     jointPosition.position = quantity;
 
@@ -411,19 +472,20 @@ void moved_touch(const geometry_msgs::PoseStamped msg)
       float phi_required = (M_PI + atan2(unit_vector_required.at(1), unit_vector_required.at(0))) * 180 / M_PI;
       float theta_required = acos(unit_vector_required.at(2)) * 180 / M_PI;
 
-      publishNewEEF(pub, pub2, y_dif + shifted_origin.at(0), -x_dif + shifted_origin.at(1),
-                    z_dif + shifted_origin.at(2), phi_required, theta_required, armAng);
+      publishNewEEF_trials(pub, pub2, y_dif + shifted_origin.at(0), -x_dif + shifted_origin.at(1),
+                           z_dif + shifted_origin.at(2), phi_required, theta_required);
     }
     else
     {
       float x_dif = 1000 * (x_pos - touch_origin.at(0));
       float y_dif = 1000 * (y_pos - touch_origin.at(1));
       float z_dif = 1000 * (z_pos - touch_origin.at(2));
-      x_dif /= 2;
-      y_dif /= 2;
-      z_dif /= 2;
-      publishNewEEF(pub, pub2, y_dif + startingPosition.at(0), -x_dif + startingPosition.at(1),
-                    z_dif + startingPosition.at(2), final_phi, final_theta, armAngle);
+      // x_dif /= 2;
+      // y_dif /= 2;
+      // z_dif /= 2;
+      armAngle = armAng;
+      publishNewEEF_trials(pub, pub2, y_dif + startingPosition.at(0), -x_dif + startingPosition.at(1),
+                           z_dif + startingPosition.at(2), final_phi, final_theta);
     }
   }
 }
@@ -456,7 +518,7 @@ int main(int argc, char* argv[])
 
   cout << "   Move the KUKA robot to the initial position, hit enter to confirm position ";
   ros::Subscriber sub2 = n.subscribe("/iiwa/state/JointPosition", 1000, moved_kuka);
-  ros::Subscriber sub4 = n.subscribe("/phantom/joint_states", 1000, moved_touch_joints);
+  ros::Subscriber sub4 = n.subscribe("/phantom/joint_states", 100, moved_touch_joints);
   char c = getch();
   c = getch();
   ros::spinOnce();
@@ -523,7 +585,7 @@ bool inv_kin_kuka(double X, double Y, double Z, double eef_phi, double eef_theta
 {
   cout << "Commanded: \nPosition (X,Y,Z) [mm]: [" << X << ", " << Y << ", " << Z << "]" << endl;
   cout << "EEF Orientation (Phi, Theta) [deg]: [" << eef_phi << ", " << eef_theta << "]" << endl;
-  cout << "Entered arm Angle [deg]: " << armAng << endl;
+  // cout << "Entered arm Angle [deg]: " << armAng << endl;
   cout << "-------------------------------------" << endl;
 
   // calc joint values
@@ -573,6 +635,189 @@ bool inv_kin_kuka(double X, double Y, double Z, double eef_phi, double eef_theta
   {
     return false;
   }
+  jointAngles[0] = (float)phi1_1;
+  jointAngles[1] = (float)phi2_2;
+  jointAngles[2] = (float)phi3_2;
+  jointAngles[3] = (float)phi4_2;
+  jointAngles[4] = (float)phi5_2;
+  jointAngles[5] = (float)phi6_2;
+  jointAngles[6] = (float)phi7_2;
+
+  return true;
+}
+
+bool started_two = false;
+
+float phi1_old_min = 0;
+float phi2_old_min = 0;
+float phi3_old_min = 0;
+float phi4_old_min = 0;
+float phi5_old_min = 0;
+float phi6_old_min = 0;
+float phi7_old_min = 0;
+
+bool updated_inv_kin_kuka(double X, double Y, double Z, double eef_phi, double eef_theta, float* jointAngles)
+{
+  cout << "Commanded: \nPosition (X,Y,Z) [mm]: [" << X << ", " << Y << ", " << Z << "]" << endl;
+  cout << "EEF Orientation (Phi, Theta) [deg]: [" << eef_phi << ", " << eef_theta << "]" << endl;
+  // cout << "Entered arm Angle [deg]: " << armAng << endl;
+  cout << "-------------------------------------" << endl;
+
+  bool hasSolution = false;
+  float minDiff = 15;
+  float phi_1_min = 0;
+  float phi_2_min = 0;
+  float phi_3_min = 0;
+  float phi_4_min = 0;
+  float phi_5_min = 0;
+  float phi_6_min = 0;
+  float phi_7_min = 0;
+  float arm_angle_min = 0;
+  bool skip_next = false;
+
+  inv_kin_kuka_angle_calc(X, Y, Z, eef_phi, eef_theta, armAng);
+  if (abs(phi1) < phi1_max && abs(phi2) < phi2_max && abs(phi3) < phi3_max && abs(phi4) < phi4_max &&
+      abs(phi5) < phi5_max && abs(phi6) < phi6_max && abs(phi7) < phi7_max && abs(phi4) < phi4_max && !isnan(phi1_1) &&
+      !isnan(phi2_2) && !isnan(phi3_2) && !isnan(phi4_2) && !isnan(phi5_2) && !isnan(phi6_2) && !isnan(phi7_2))
+  {
+    float phi1_diff = phi1 - phi1_old_min;
+    float phi2_diff = phi2 - phi2_old_min;
+    float phi3_diff = phi3 - phi3_old_min;
+    float phi4_diff = phi4 - phi4_old_min;
+    float phi5_diff = phi5 - phi5_old_min;
+    float phi6_diff = phi6 - phi6_old_min;
+    float phi7_diff = phi7 - phi7_old_min;
+    double phi_diff_minus = abs(phi1 - phi1_old) + abs(phi2 - phi2_old) + abs(phi3 - phi3_old) + abs(phi4 - phi4_old) +
+                            abs(phi5 - phi5_old) + abs(phi6 - phi6_old) + abs(phi7 - phi7_old);
+    if (phi_diff_minus < 5)
+    {
+      skip_next = true;
+      hasSolution = true;
+      arm_angle_min = armAng;
+      started_two = true;
+    }
+  }
+
+  if (!skip_next)
+  {
+    for (float test_arm_angle = armAng; test_arm_angle < armAng + 15; test_arm_angle += 0.5)
+    {
+      inv_kin_kuka_angle_calc(X, Y, Z, eef_phi, eef_theta, test_arm_angle);
+
+      if (abs(phi1) < phi1_max && abs(phi2) < phi2_max && abs(phi3) < phi3_max && abs(phi4) < phi4_max &&
+          abs(phi5) < phi5_max && abs(phi6) < phi6_max && abs(phi7) < phi7_max && abs(phi4) < phi4_max &&
+          !isnan(phi1_1) && !isnan(phi2_2) && !isnan(phi3_2) && !isnan(phi4_2) && !isnan(phi5_2) && !isnan(phi6_2) &&
+          !isnan(phi7_2))
+      {
+        float phi1_diff = phi1 - phi1_old_min;
+        float phi2_diff = phi2 - phi2_old_min;
+        float phi3_diff = phi3 - phi3_old_min;
+        float phi4_diff = phi4 - phi4_old_min;
+        float phi5_diff = phi5 - phi5_old_min;
+        float phi6_diff = phi6 - phi6_old_min;
+        float phi7_diff = phi7 - phi7_old_min;
+        double phi_diff_minus = abs(phi1 - phi1_old) + abs(phi2 - phi2_old) + abs(phi3 - phi3_old) +
+                                abs(phi4 - phi4_old) + abs(phi5 - phi5_old) + abs(phi6 - phi6_old) +
+                                abs(phi7 - phi7_old);
+
+        if (minDiff > phi_diff_minus || !started_two)
+        {
+          minDiff = phi_diff_minus;
+
+          phi_1_min = phi1;
+          phi_2_min = phi1;
+          phi_3_min = phi1;
+          phi_4_min = phi1;
+          phi_5_min = phi1;
+          phi_6_min = phi1;
+          phi_7_min = phi1;
+          hasSolution = true;
+          arm_angle_min = test_arm_angle;
+          started_two = true;
+
+          if (minDiff < 3)
+          {
+            break;
+          }
+        }
+      }
+    }
+
+    for (float test_arm_angle = armAng - 15; test_arm_angle < armAng; test_arm_angle += 0.5)
+    {
+      inv_kin_kuka_angle_calc(X, Y, Z, eef_phi, eef_theta, test_arm_angle);
+
+      if (abs(phi1) < phi1_max && abs(phi2) < phi2_max && abs(phi3) < phi3_max && abs(phi4) < phi4_max &&
+          abs(phi5) < phi5_max && abs(phi6) < phi6_max && abs(phi7) < phi7_max && abs(phi4) < phi4_max &&
+          !isnan(phi1_1) && !isnan(phi2_2) && !isnan(phi3_2) && !isnan(phi4_2) && !isnan(phi5_2) && !isnan(phi6_2) &&
+          !isnan(phi7_2))
+      {
+        float phi1_diff = phi1 - phi1_old_min;
+        float phi2_diff = phi2 - phi2_old_min;
+        float phi3_diff = phi3 - phi3_old_min;
+        float phi4_diff = phi4 - phi4_old_min;
+        float phi5_diff = phi5 - phi5_old_min;
+        float phi6_diff = phi6 - phi6_old_min;
+        float phi7_diff = phi7 - phi7_old_min;
+        double phi_diff_minus = abs(phi1 - phi1_old) + abs(phi2 - phi2_old) + abs(phi3 - phi3_old) +
+                                abs(phi4 - phi4_old) + abs(phi5 - phi5_old) + abs(phi6 - phi6_old) +
+                                abs(phi7 - phi7_old);
+
+        if (minDiff > phi_diff_minus || !started_two)
+        {
+          minDiff = phi_diff_minus;
+
+          phi_1_min = phi1;
+          phi_2_min = phi1;
+          phi_3_min = phi1;
+          phi_4_min = phi1;
+          phi_5_min = phi1;
+          phi_6_min = phi1;
+          phi_7_min = phi1;
+          hasSolution = true;
+          arm_angle_min = test_arm_angle;
+          started_two = true;
+
+          if (minDiff < 3)
+          {
+            break;
+          }
+        }
+      }
+    }
+  }
+
+  if (!hasSolution)
+  {
+    return false;
+  }
+
+  armAng = arm_angle_min;
+  cout << "DONE LOOPING, BEST: " << armAng << endl;
+
+  // check for joint violation
+  if (abs(phi4) >= phi4_max)
+  {
+    cout << "Wrist too close to shoulder!" << endl;
+    return false;
+  }
+
+  else if (abs(phi1) >= phi1_max | abs(phi2) >= phi2_max | abs(phi3) >= phi3_max | abs(phi4) >= phi4_max |
+           abs(phi5) >= phi5_max | abs(phi6) >= phi6_max | abs(phi7) >= phi7_max)
+  {
+    // armAngle = adapt_elbow_position(X, Y, Z, eef_phi, eef_theta, armAng_in);
+    return false;
+  }
+  // store calculated joint values for next round
+
+  phi1_old_min = phi1;
+  phi2_old_min = phi2;
+  phi3_old_min = phi3;
+  phi4_old_min = phi4;
+  phi5_old_min = phi5;
+  phi6_old_min = phi6;
+  phi7_old_min = phi7;
+
   jointAngles[0] = (float)phi1_1;
   jointAngles[1] = (float)phi2_2;
   jointAngles[2] = (float)phi3_2;
