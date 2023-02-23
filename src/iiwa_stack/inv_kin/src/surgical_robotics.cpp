@@ -106,7 +106,8 @@ double d_bs = 360;
 double d_se = 420;
 double d_ew = 400;
 // double d_wf = 152;  // without gripper (x,y,z output of smartPad is without gripper)
-double d_wf = 639;                         // with 487 gripper (x,y,z output of smartPad is without gripper)
+// double d_wf = 639;                         // with 487 gripper (x,y,z output of smartPad is without gripper)
+double d_wf = 609;
 vector<double> p_shoulder = {0, 0, d_bs};  // position of shoulder
 vector<double> vec_eef = {0, 0, 0};        // vector base (x=y=z=0) to tcp tip
 vector<double> vec_wf_tmp = {0, 0, d_wf};  // vector wrist endeffector [wf]
@@ -154,6 +155,13 @@ using namespace std;
 bool publishNewEEF(ros::Publisher jointAnglesPublisher, ros::Publisher xyzPublisher, float xPosition, float yPosition,
                    float zPosition, float eefPhiOrientation, float eefThetaOrientation, float armAngle)
 {
+  if (zPosition <= 42)
+  {
+    ROS_INFO("DID NOT SEND ANGLES - SAFETY");
+
+    return false;
+  }
+
   std_msgs::Float32MultiArray messageArray;
   float* jointAngles = new float[7];
 
@@ -256,53 +264,54 @@ void moved_kuka(const iiwa_msgs::JointPosition msg)
     first = false;
     kuka_phi_initial = currentPhi;
     kuka_theta_initial = currentTheta;
+
+    vector<double> position_elbow_2 = {1000 * manip.fk(q).htmDH[2](0, 3), 1000 * manip.fk(q).htmDH[2](1, 3),
+                                       1000 * manip.fk(q).htmDH[2](2, 3)};
+
+    vector<double> position_shoulder_2 = {1000 * manip.fk(q).htmDH[0](0, 3), 1000 * manip.fk(q).htmDH[0](1, 3),
+                                          1000 * manip.fk(q).htmDH[0](2, 3)};
+    vector<double> position_wrist_2 = {1000 * manip.fk(q).htmDH[4](0, 3), 1000 * manip.fk(q).htmDH[4](1, 3),
+                                       1000 * manip.fk(q).htmDH[4](2, 3)};
+    // // psw
+    vector<double> shoulder_to_wrist = Vector_substraction(position_wrist_2, position_shoulder_2);
+
+    // cout << shoulder_to_wrist.at(0) << " " << shoulder_to_wrist.at(1) << " " << shoulder_to_wrist.at(2) << endl;
+
+    double psw_length_2 =
+        sqrt(pow(shoulder_to_wrist.at(0), 2) + pow(shoulder_to_wrist.at(1), 2) + pow(shoulder_to_wrist.at(2), 2));
+
+    double pc_length_2 = abs(420.0 * (pow(400.0, 2) - pow(420.0, 2) - pow(psw_length_2, 2)) / (840.0 * psw_length_2));
+
+    vector<double> pc_2 = Vector_division(shoulder_to_wrist, (psw_length_2 / pc_length_2));
+
+    double alpha_2 = asin(pc_length_2 / d_se);
+    double alpha2_2 = (alpha_2 * 180) / pi;
+    double R_2 = cos(alpha_2) * d_se;
+
+    vector<double> pc_unit_2 =
+        Vector_division(pc_2, (sqrt(pow(pc_2.at(0), 2) + pow(pc_2.at(1), 2) + pow(pc_2.at(2), 2))));
+
+    vector<double> zero_axis_2 = {1, 0, 0};  // arbitrary axis a, (here ArmAngle = 0)
+
+    double u_tmp_2 = Vector_scalar(zero_axis_2, pc_unit_2);
+    vector<double> vec_u_tmp_1_2 = Vector_multi(pc_unit_2, u_tmp_2);
+    vector<double> vec_u_tmp_2_2 = Vector_substraction(zero_axis_2, vec_u_tmp_1_2);
+    double vec_u_tmp_len_2 =
+        sqrt(pow(vec_u_tmp_2_2.at(0), 2) + pow(vec_u_tmp_2_2.at(1), 2) + pow(vec_u_tmp_2_2.at(2), 2));
+    vector<double> vec_u_2 = Vector_division(vec_u_tmp_2_2, vec_u_tmp_len_2);
+
+    vector<double> vec_v_2 = Vector_cross(vec_u_2, pc_2);
+    double vec_b_length_2 = sqrt(pow(vec_v_2.at(0), 2) + pow(vec_v_2.at(1), 2) + pow(vec_v_2.at(2), 2));
+    vec_v_2 = Vector_division(vec_v_2, vec_b_length_2);  // unit vector
+
+    float x_first = (position_elbow_2.at(0) - pc_2.at(0) - position_shoulder_2.at(0)) / R_2;
+
+    float arm_angle_computed =
+        acos(x_first / pow(pow(vec_v_2.at(0), 2) + pow(vec_u_2.at(0), 2), 0.5)) + atan2(vec_v_2.at(0), vec_u_2.at(0));
+
+    armAngle = 180 * arm_angle_computed / M_PI;
+    armAng = armAngle;
   }
-
-  vector<double> position_elbow_2 = {1000 * manip.fk(q).htmDH[2](0, 3), 1000 * manip.fk(q).htmDH[2](1, 3),
-                                     1000 * manip.fk(q).htmDH[2](2, 3)};
-
-  vector<double> position_shoulder_2 = {1000 * manip.fk(q).htmDH[0](0, 3), 1000 * manip.fk(q).htmDH[0](1, 3),
-                                        1000 * manip.fk(q).htmDH[0](2, 3)};
-  vector<double> position_wrist_2 = {1000 * manip.fk(q).htmDH[4](0, 3), 1000 * manip.fk(q).htmDH[4](1, 3),
-                                     1000 * manip.fk(q).htmDH[4](2, 3)};
-  // // psw
-  vector<double> shoulder_to_wrist = Vector_substraction(position_wrist_2, position_shoulder_2);
-
-  // cout << shoulder_to_wrist.at(0) << " " << shoulder_to_wrist.at(1) << " " << shoulder_to_wrist.at(2) << endl;
-
-  double psw_length_2 =
-      sqrt(pow(shoulder_to_wrist.at(0), 2) + pow(shoulder_to_wrist.at(1), 2) + pow(shoulder_to_wrist.at(2), 2));
-
-  double pc_length_2 = abs(420.0 * (pow(400.0, 2) - pow(420.0, 2) - pow(psw_length_2, 2)) / (840.0 * psw_length_2));
-
-  vector<double> pc_2 = Vector_division(shoulder_to_wrist, (psw_length_2 / pc_length_2));
-
-  double alpha_2 = asin(pc_length_2 / d_se);
-  double alpha2_2 = (alpha_2 * 180) / pi;
-  double R_2 = cos(alpha_2) * d_se;
-
-  vector<double> pc_unit_2 =
-      Vector_division(pc_2, (sqrt(pow(pc_2.at(0), 2) + pow(pc_2.at(1), 2) + pow(pc_2.at(2), 2))));
-
-  vector<double> zero_axis_2 = {1, 0, 0};  // arbitrary axis a, (here ArmAngle = 0)
-
-  double u_tmp_2 = Vector_scalar(zero_axis_2, pc_unit_2);
-  vector<double> vec_u_tmp_1_2 = Vector_multi(pc_unit_2, u_tmp_2);
-  vector<double> vec_u_tmp_2_2 = Vector_substraction(zero_axis_2, vec_u_tmp_1_2);
-  double vec_u_tmp_len_2 =
-      sqrt(pow(vec_u_tmp_2_2.at(0), 2) + pow(vec_u_tmp_2_2.at(1), 2) + pow(vec_u_tmp_2_2.at(2), 2));
-  vector<double> vec_u_2 = Vector_division(vec_u_tmp_2_2, vec_u_tmp_len_2);
-
-  vector<double> vec_v_2 = Vector_cross(vec_u_2, pc_2);
-  double vec_b_length_2 = sqrt(pow(vec_v_2.at(0), 2) + pow(vec_v_2.at(1), 2) + pow(vec_v_2.at(2), 2));
-  vec_v_2 = Vector_division(vec_v_2, vec_b_length_2);  // unit vector
-
-  float x_first = (position_elbow_2.at(0) - pc_2.at(0) - position_shoulder_2.at(0)) / R_2;
-
-  float arm_angle_computed =
-      acos(x_first / pow(pow(vec_v_2.at(0), 2) + pow(vec_u_2.at(0), 2), 0.5)) + atan2(vec_v_2.at(0), vec_u_2.at(0));
-
-  armAngle = 180 * arm_angle_computed / M_PI;
 }
 
 void moved_touch_joints(const sensor_msgs::JointState msg)
@@ -337,6 +346,8 @@ void moved_touch_joints(const sensor_msgs::JointState msg)
 
 VectorXd initial_unit_vector;
 
+vector<float> shifted_origin;
+
 void moved_touch(const geometry_msgs::PoseStamped msg)
 {
   float x_pos = msg.pose.position.x;
@@ -367,9 +378,6 @@ void moved_touch(const geometry_msgs::PoseStamped msg)
     {
       float z_dif_temp = 1000 * (z_pos - touch_origin.at(2));
 
-      cout << "z_diff_temp: " << z_dif_temp << endl;
-      cout << "unit vector: " << kuka_corrected_unit_vector << endl;
-
       VectorXd move_by = kuka_corrected_unit_vector * -1 * z_dif_temp * 0.5;
 
       float x_dif = move_by[0];
@@ -385,22 +393,14 @@ void moved_touch(const geometry_msgs::PoseStamped msg)
       float y_dif = 1000 * (y_pos - touch_origin.at(1));
       float z_dif = 1000 * (z_pos - touch_origin.at(2));
 
-      cout << "x_dif: " << x_dif << endl;
-      cout << "y_dif: " << y_dif << endl;
-      cout << "z_dif: " << z_dif << endl;
-
-      // x_dif /= 3;
-      // y_dif /= 3;
-      // z_dif /= 3;
+      x_dif /= 2;
+      y_dif /= 2;
+      z_dif /= 2;
 
       vector<float> fulcrum_to_eef_vector = {y_dif, -1 * x_dif, z_dif};
 
-      cout << "fulcrum_to_eef_vector.at(0): " << fulcrum_to_eef_vector.at(0) << endl;
-      cout << "fulcrum_to_eef_vector.at(1): " << fulcrum_to_eef_vector.at(1) << endl;
-      cout << "fulcrum_to_eef_vector.at(2): " << fulcrum_to_eef_vector.at(2) << endl;
       float fulcrum_to_eef_length = sqrt(pow(fulcrum_to_eef_vector.at(0), 2) + pow(fulcrum_to_eef_vector.at(1), 2) +
                                          pow(fulcrum_to_eef_vector.at(2), 2));
-      cout << "fulcrum_to_eef_length: " << fulcrum_to_eef_length << endl;
 
       // equivelent to the unit vector of the fulctum to eef vector and it is the unique orientation therough the
       // fulcrum point
@@ -411,16 +411,8 @@ void moved_touch(const geometry_msgs::PoseStamped msg)
       float phi_required = (M_PI + atan2(unit_vector_required.at(1), unit_vector_required.at(0))) * 180 / M_PI;
       float theta_required = acos(unit_vector_required.at(2)) * 180 / M_PI;
 
-      cout << endl
-           << "UNIT VECTOR REQUIRED: " << unit_vector_required.at(0) << " " << unit_vector_required.at(1) << " "
-           << unit_vector_required.at(2);
-      cout << "fulcrum_to_eef_length: " << fulcrum_to_eef_length << endl;
-
-      cout << "PHI REQUIRED: " << phi_required << endl;
-      cout << "THETA REQUIRED: " << theta_required << endl;
-
-      publishNewEEF(pub, pub2, y_dif + startingPosition.at(0), -x_dif + startingPosition.at(1),
-                    z_dif + startingPosition.at(2), phi_required, theta_required, armAngle);
+      publishNewEEF(pub, pub2, y_dif + shifted_origin.at(0), -x_dif + shifted_origin.at(1),
+                    z_dif + shifted_origin.at(2), phi_required, theta_required, armAng);
     }
     else
     {
@@ -453,8 +445,8 @@ int main(int argc, char* argv[])
 
   ros::init(argc, argv, "surgical_roboitcs");
   ros::NodeHandle n;
-  pub = n.advertise<iiwa_msgs::JointPosition>("/iiwa/command/JointPosition", 100000);
-  pub2 = n.advertise<std_msgs::Float32MultiArray>("eefGoals", 100000);
+  pub = n.advertise<iiwa_msgs::JointPosition>("/iiwa/command/JointPosition", 1000);
+  pub2 = n.advertise<std_msgs::Float32MultiArray>("eefGoals", 1000);
 
   origin.push_back(450.0);
   origin.push_back(0.0);
@@ -464,7 +456,7 @@ int main(int argc, char* argv[])
 
   cout << "   Move the KUKA robot to the initial position, hit enter to confirm position ";
   ros::Subscriber sub2 = n.subscribe("/iiwa/state/JointPosition", 1000, moved_kuka);
-  ros::Subscriber sub4 = n.subscribe("/phantom/joint_states", 100000, moved_touch_joints);
+  ros::Subscriber sub4 = n.subscribe("/phantom/joint_states", 1000, moved_touch_joints);
   char c = getch();
   c = getch();
   ros::spinOnce();
@@ -484,6 +476,17 @@ int main(int argc, char* argv[])
     cout << endl << endl << "   Initial Orientation: " << endl;
     cout << "   Phi: " << startingPosition.at(3) << endl;
     cout << "   Theta: " << startingPosition.at(4) << endl;
+
+    VectorXd move_by = kuka_corrected_unit_vector * 50;
+
+    float x_dif = move_by[0];
+    float y_dif = move_by[1];
+    float z_dif = move_by[2];
+
+    shifted_origin = {x_dif + startingPosition.at(0), y_dif + startingPosition.at(1), z_dif + startingPosition.at(2)};
+
+    publishNewEEF(pub, pub2, x_dif + startingPosition.at(0), y_dif + startingPosition.at(1),
+                  z_dif + startingPosition.at(2), kuka_phi_initial, kuka_theta_initial, armAngle);
   }
   else
   {
@@ -536,17 +539,27 @@ bool inv_kin_kuka(double X, double Y, double Z, double eef_phi, double eef_theta
   else if (abs(phi1) >= phi1_max | abs(phi2) >= phi2_max | abs(phi3) >= phi3_max | abs(phi4) >= phi4_max |
            abs(phi5) >= phi5_max | abs(phi6) >= phi6_max | abs(phi7) >= phi7_max)
   {
-    armAngle = adapt_elbow_position(X, Y, Z, eef_phi, eef_theta, armAng_in);
-    // return false;
+    // armAngle = adapt_elbow_position(X, Y, Z, eef_phi, eef_theta, armAng_in);
+    return false;
   }
   // store calculated joint values for next round
-  phi1_old = phi1;
-  phi2_old = phi2;
-  phi3_old = phi3;
-  phi4_old = phi4;
-  phi5_old = phi5;
-  phi6_old = phi6;
-  phi7_old = phi7;
+
+  float phi1_diff = phi1 - phi1_old;
+  float phi2_diff = phi2 - phi2_old;
+  float phi3_diff = phi3 - phi3_old;
+  float phi4_diff = phi4 - phi4_old;
+  float phi5_diff = phi5 - phi5_old;
+  float phi6_diff = phi6 - phi6_old;
+  float phi7_diff = phi7 - phi7_old;
+  double phi_diff_minus = abs(phi1 - phi1_old) + abs(phi2 - phi2_old) + abs(phi3 - phi3_old) + abs(phi4 - phi4_old) +
+                          abs(phi5 - phi5_old) + abs(phi6 - phi6_old) + abs(phi7 - phi7_old);
+  cout << "Difference: " << phi_diff_minus << endl;
+
+  if (phi_diff_minus > 10)
+  {
+    cout << "GO SLOWER" << endl;
+    return false;
+  }
 
   // print out results ---------------------------------------------------------------------------
   // cout << "Angles [deg]: " << endl;
@@ -596,7 +609,7 @@ double adapt_elbow_position(double X, double Y, double Z, double eef_phi, double
     // cout << "-------------------------------------" << endl;
 
     // if there is no solution
-    if (loop_count > 360)
+    if (loop_count > 10)
     {
       cout << "Target not reachable (impossible pose)" << endl;
       return 0;
@@ -661,6 +674,8 @@ double adapt_elbow_position(double X, double Y, double Z, double eef_phi, double
   phi7_diff = phi7_2 - phi7_old;
   double phi_diff_minus = abs(phi1_diff) + abs(phi2_diff) + abs(phi3_diff) + abs(phi4_diff) + abs(phi5_diff) +
                           abs(phi6_diff) + abs(phi7_diff);
+
+  cout << "Difference: " << phi_diff_minus << endl;
 
   //---------------------------------------------------------------------
 

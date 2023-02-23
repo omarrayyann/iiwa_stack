@@ -145,7 +145,9 @@ double d_bs = 360;
 double d_se = 420;
 double d_ew = 400;
 // double d_wf = 152;  // without gripper (x,y,z output of smartPad is without gripper)
-double d_wf = 639;  // withwithout 48.7 gripper (x,y,z output of smartPad is without gripper)
+// double d_wf = 639;  // with// double d_wf = 639;                         // with 487 gripper (x,y,z output of
+// smartPad is without gripper)
+double d_wf = 609;  // without 48.7 gripper (x,y,z output of smartPad is without gripper)
 
 vector<double> p_shoulder = {0, 0, d_bs};  // position of shoulder
 vector<double> vec_eef = {0, 0, 0};        // vector base (x=y=z=0) to tcp tip
@@ -249,13 +251,28 @@ void fixForStick(float& xPosition, float& yPosition, float& zPosition, float eef
 bool publishNewEEF(ros::Publisher jointAnglesPublisher, ros::Publisher xyzPublisher, float xPosition, float yPosition,
                    float zPosition, float eefPhiOrientation, float eefThetaOrientation, float armAngle)
 {
+  if (zPosition <= 42)
+  {
+    ROS_INFO("DID NOT SEND ANGLES - SAFETY");
+
+    return false;
+  }
+
   std_msgs::Float32MultiArray messageArray;
   float* jointAngles = new float[7];
 
   // fixForStick(xPosition, yPosition, zPosition, eefPhiOrientation, eefThetaOrientation);
-  cout << "HELLO: " << armAngle << endl;
   if (inv_kin_kuka(xPosition, yPosition, zPosition, eefPhiOrientation, eefThetaOrientation, armAngle, jointAngles))
   {
+    if (abs(jointAngles[0]) > 165 || abs(jointAngles[1]) > 115 || abs(jointAngles[2]) > 165 ||
+        abs(jointAngles[3]) > 115 || abs(jointAngles[4]) > 165 || abs(jointAngles[5]) > 115 ||
+        abs(jointAngles[6]) > 170)
+    {
+      ROS_INFO("DID NOT SEND ANGLES - SAFETY");
+
+      return false;
+    }
+
     messageArray.data.clear();
 
     iiwa_msgs::JointPosition jointPosition;
