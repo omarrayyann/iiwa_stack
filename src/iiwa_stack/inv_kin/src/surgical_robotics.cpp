@@ -468,6 +468,14 @@ void moved_touch(const geometry_msgs::PoseStamped msg)
       float phi_required = (M_PI + atan2(unit_vector_required.at(1), unit_vector_required.at(0))) * 180 / M_PI;
       float theta_required = acos(unit_vector_required.at(2)) * 180 / M_PI;
 
+      vector<double> sent_eef_pos = {y_dif + shifted_origin.at(0), -x_dif + shifted_origin.at(1),
+                                     z_dif + shifted_origin.at(2)};
+      vector<double> fulcrum_point = {touch_origin.at(0), touch_origin.at(1), touch_origin.at(2)};
+      vector<double> temp = Vector_substraction(sent_eef_pos, fulcrum_point);
+      vector<double> unit_vector = {kuka_corrected_unit_vector[0], kuka_corrected_unit_vector[1],
+                                    kuka_corrected_unit_vector[2]};
+      vector<double> numerator = Vector_cross(temp, unit_vector);
+
       publishNewEEF_trials(pub, pub2, y_dif + shifted_origin.at(0), -x_dif + shifted_origin.at(1),
                            z_dif + shifted_origin.at(2), phi_required, theta_required);
     }
@@ -513,7 +521,7 @@ int main(int argc, char* argv[])
 
   cout << "   Move the KUKA robot to the initial position, hit enter to confirm position ";
   ros::Subscriber sub2 = n.subscribe("/iiwa/state/JointPosition", 1000, moved_kuka);
-  ros::Subscriber sub4 = n.subscribe("/phantom/joint_states", 100, moved_touch_joints);
+  ros::Subscriber sub4 = n.subscribe("/phantom/joint_states", 1000, moved_touch_joints);
   char c = getch();
   c = getch();
   ros::spinOnce();
@@ -684,12 +692,13 @@ bool updated_inv_kin_kuka(double X, double Y, double Z, double eef_phi, double e
     float phi7_diff = phi7 - phi7_old_min;
     double phi_diff_minus = abs(phi1 - phi1_old) + abs(phi2 - phi2_old) + abs(phi3 - phi3_old) + abs(phi4 - phi4_old) +
                             abs(phi5 - phi5_old) + abs(phi6 - phi6_old) + abs(phi7 - phi7_old);
-    if (phi_diff_minus < 4)
+    if (phi_diff_minus < 10)
     {
       skip_next = true;
       hasSolution = true;
       arm_angle_min = armAng;
       started_two = true;
+      minDiff = phi_diff_minus;
     }
   }
 
@@ -730,7 +739,7 @@ bool updated_inv_kin_kuka(double X, double Y, double Z, double eef_phi, double e
           arm_angle_min = test_arm_angle;
           started_two = true;
 
-          if (minDiff < 3)
+          if (minDiff < 10)
           {
             break;
           }
@@ -773,7 +782,7 @@ bool updated_inv_kin_kuka(double X, double Y, double Z, double eef_phi, double e
           arm_angle_min = test_arm_angle;
           started_two = true;
 
-          if (minDiff < 3)
+          if (minDiff < 10)
           {
             break;
           }
@@ -782,13 +791,14 @@ bool updated_inv_kin_kuka(double X, double Y, double Z, double eef_phi, double e
     }
   }
 
-  if (!hasSolution)
+  if (!hasSolution || minDiff > 10)
   {
     return false;
   }
 
   armAng = arm_angle_min;
-  cout << "DONE LOOPING, BEST: " << armAng << endl;
+  cout << "DONE LOOPING, ANGLE: " << armAng << endl;
+  cout << "DONE LOOPING, BEST: " << minDiff << endl;
 
   // check for joint violation
   if (abs(phi4) >= phi4_max)
