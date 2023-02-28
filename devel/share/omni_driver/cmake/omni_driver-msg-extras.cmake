@@ -1,0 +1,2 @@
+set(omni_driver_MESSAGE_FILES "/home/cair1/github_packages/iiwa_stack/src/ros_geomagic_touch_phantom_omni-master/omni_driver/msg/OmniButtonEvent.msg;/home/cair1/github_packages/iiwa_stack/src/ros_geomagic_touch_phantom_omni-master/omni_driver/msg/OmniFeedback.msg;/home/cair1/github_packages/iiwa_stack/src/ros_geomagic_touch_phantom_omni-master/omni_driver/msg/OmniState.msg;/home/cair1/github_packages/iiwa_stack/src/ros_geomagic_touch_phantom_omni-master/omni_driver/msg/TeleopControl.msg")
+set(omni_driver_SERVICE_FILES "")

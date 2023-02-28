@@ -204,7 +204,7 @@ bool publishNewEEF(ros::Publisher jointAnglesPublisher, ros::Publisher xyzPublis
 
     jointPosition.position = quantity;
 
-    jointAnglesPublisher.publish(jointPosition);
+    // jointAnglesPublisher.publish(jointPosition);
     messageArray.data.clear();
     messageArray.data = {xPosition, yPosition, zPosition};
 
@@ -264,7 +264,7 @@ bool publishNewEEF_trials(ros::Publisher jointAnglesPublisher, ros::Publisher xy
 
     jointPosition.position = quantity;
 
-    jointAnglesPublisher.publish(jointPosition);
+    // jointAnglesPublisher.publish(jointPosition);
     messageArray.data.clear();
     messageArray.data = {xPosition, yPosition, zPosition};
 
@@ -450,9 +450,9 @@ void moved_touch(const geometry_msgs::PoseStamped msg)
     }
     else if (option == 2)
     {
-      float x_dif = 1000 * (x_pos - touch_origin.at(0));
-      float y_dif = 1000 * (y_pos - touch_origin.at(1));
-      float z_dif = 1000 * (z_pos - touch_origin.at(2));
+      float x_dif = 1000 * (x_pos - touch_origin.at(0)) / 2;
+      float y_dif = 1000 * (y_pos - touch_origin.at(1)) / 2;
+      float z_dif = 1000 * (z_pos - touch_origin.at(2)) / 2;
 
       vector<float> fulcrum_to_eef_vector = {y_dif, -1 * x_dif, z_dif};
 
@@ -469,22 +469,28 @@ void moved_touch(const geometry_msgs::PoseStamped msg)
       float theta_required = acos(unit_vector_required.at(2)) * 180 / M_PI;
 
       vector<float> fulcrum_point = {startingPosition.at(0), startingPosition.at(1), startingPosition.at(2)};
-      vector<float> fulcrum_unit_vector = {kuka_corrected_unit_vector[0], kuka_corrected_unit_vector[1],
-                                           kuka_corrected_unit_vector[2]};
+      vector<double> fulcrum_unit_vector = {kuka_corrected_unit_vector[0], kuka_corrected_unit_vector[1],
+                                            kuka_corrected_unit_vector[2]};
 
       vector<double> eef = {y_dif + shifted_origin.at(0), -x_dif + shifted_origin.at(1), z_dif + shifted_origin.at(2)};
       // Distance from line of the cone
       vector<double> point_vector = {
-          fulcrum_point.at(0) - eef.at(0),
-          fulcrum_point.at(1) - eef.at(1),
-          fulcrum_point.at(2) - eef.at(2),
+          eef.at(0) - fulcrum_point.at(0),
+          eef.at(1) - fulcrum_point.at(1),
+          eef.at(2) - fulcrum_point.at(2),
       };
 
-      double projection = Vector_scalar(eef, point_vector);
+      cout << "EEf: " << eef.at(0) << " " << eef.at(1) << " " << eef.at(2) << endl;
+      cout << "point_vector: " << point_vector.at(0) << " " << point_vector.at(1) << " " << point_vector.at(2) << endl;
+      cout << "Shifted origin: " << shifted_origin.at(0) << " " << shifted_origin.at(1) << " " << shifted_origin.at(2);
+
+      double projection = Vector_scalar(fulcrum_unit_vector, point_vector);
+      cout << "PROJECTION: " << projection << endl;
+
       // Distance required from the line of the cone
       if (projection <= 0)
       {
-        return false;
+        return;
       }
 
       float first_total = sqrt(pow(point_vector.at(0), 2) + pow(point_vector.at(1), 2) + pow(point_vector.at(2), 2));
@@ -492,14 +498,16 @@ void moved_touch(const geometry_msgs::PoseStamped msg)
       float angle = acos(projection / first_total) * 180 / M_PI;
 
       cout << "ANGLE: " << angle << endl;
-      cout << "PROJECTION: " << projection << endl;
 
       if (angle > 20 || angle < -20)
       {
-        return false;
+        cout << "FAIL" << endl;
+
+        return;
       }
       else
       {
+        cout << "SUCCESS" << endl;
         publishNewEEF_trials(pub, pub2, y_dif + shifted_origin.at(0), -x_dif + shifted_origin.at(1),
                              z_dif + shifted_origin.at(2), phi_required, theta_required);
       }
@@ -567,12 +575,11 @@ int main(int argc, char* argv[])
     cout << "   Phi: " << startingPosition.at(3) << endl;
     cout << "   Theta: " << startingPosition.at(4) << endl;
 
-    VectorXd move_by = kuka_corrected_unit_vector * 100;
+    VectorXd move_by = kuka_corrected_unit_vector * 50;
 
     float x_dif = move_by[0];
     float y_dif = move_by[1];
     float z_dif = move_by[2];
-
     shifted_origin = {x_dif + startingPosition.at(0), y_dif + startingPosition.at(1), z_dif + startingPosition.at(2)};
 
     publishNewEEF(pub, pub2, x_dif + startingPosition.at(0), y_dif + startingPosition.at(1),
@@ -717,13 +724,17 @@ bool updated_inv_kin_kuka(double X, double Y, double Z, double eef_phi, double e
     float phi7_diff = phi7 - phi7_old_min;
     double phi_diff_minus = abs(phi1 - phi1_old) + abs(phi2 - phi2_old) + abs(phi3 - phi3_old) + abs(phi4 - phi4_old) +
                             abs(phi5 - phi5_old) + abs(phi6 - phi6_old) + abs(phi7 - phi7_old);
-    if (phi_diff_minus < &&phi1_diff < 5 && phi2_diff < 5 && phi3_diff < 5 && phi4_diff < 5 && phi5_diff < 5 &&
-        phi6_diff < 5 && phi7_diff < 5)
+    if (phi_diff_minus < minDiff)
     {
       skip_next = true;
       hasSolution = true;
       arm_angle_min = armAng;
       started_two = true;
+      cout << "DID: " << phi_diff_minus << endl;
+    }
+    else
+    {
+      cout << "DID NOT: " << phi_diff_minus << endl;
     }
   }
 
@@ -749,8 +760,7 @@ bool updated_inv_kin_kuka(double X, double Y, double Z, double eef_phi, double e
                                 abs(phi4 - phi4_old) + abs(phi5 - phi5_old) + abs(phi6 - phi6_old) +
                                 abs(phi7 - phi7_old);
 
-        if ((minDiff > phi_diff_minus || !started_two) && phi1_diff < 5 && phi2_diff < 5 && phi3_diff < 5 &&
-            phi4_diff < 5 && phi5_diff < 5 && phi6_diff < 5 && phi7_diff < 5)
+        if ((minDiff > phi_diff_minus || !started_two))
         {
           minDiff = phi_diff_minus;
 
@@ -793,8 +803,7 @@ bool updated_inv_kin_kuka(double X, double Y, double Z, double eef_phi, double e
                                 abs(phi4 - phi4_old) + abs(phi5 - phi5_old) + abs(phi6 - phi6_old) +
                                 abs(phi7 - phi7_old);
 
-        if ((minDiff > phi_diff_minus || !started_two) && phi1_diff < 5 && phi2_diff < 5 && phi3_diff < 5 &&
-            phi4_diff < 5 && phi5_diff < 5 && phi6_diff < 5 && phi7_diff < 5)
+        if ((minDiff > phi_diff_minus || !started_two))
         {
           minDiff = phi_diff_minus;
 
@@ -818,8 +827,12 @@ bool updated_inv_kin_kuka(double X, double Y, double Z, double eef_phi, double e
     }
   }
 
+  cout << "arm_angle_min: " << arm_angle_min << endl;
+  cout << "hasSolution: " << hasSolution << endl;
+
   if (!hasSolution || arm_angle_min > 12)
   {
+    cout << "here: " << arm_angle_min << endl;
     return false;
   }
 

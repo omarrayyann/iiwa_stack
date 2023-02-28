@@ -1,0 +1,8 @@
+prefix=/home/cair1/github_packages/iiwa_stack/devel
+
+Name: omni_driver
+Description: Description of omni_driver
+Version: 1.0.0
+Cflags: -I/home/cair1/github_packages/iiwa_stack/devel/include
+Libs: -L${prefix}/lib 
+Requires: geometry_msgs omni_description roscpp std_msgs tf urdf moveit_ros_planning moveit_ros_move_group omni_controller

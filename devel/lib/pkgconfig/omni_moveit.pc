@@ -1,0 +1,8 @@
+prefix=/home/cair1/github_packages/iiwa_stack/devel
+
+Name: omni_moveit
+Description: Description of omni_moveit
+Version: 0.3.0
+Cflags: 
+Libs: -L${prefix}/lib 
+Requires: 
