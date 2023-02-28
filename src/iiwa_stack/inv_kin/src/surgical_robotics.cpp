@@ -468,16 +468,41 @@ void moved_touch(const geometry_msgs::PoseStamped msg)
       float phi_required = (M_PI + atan2(unit_vector_required.at(1), unit_vector_required.at(0))) * 180 / M_PI;
       float theta_required = acos(unit_vector_required.at(2)) * 180 / M_PI;
 
-      vector<double> sent_eef_pos = {y_dif + shifted_origin.at(0), -x_dif + shifted_origin.at(1),
-                                     z_dif + shifted_origin.at(2)};
-      vector<double> fulcrum_point = {touch_origin.at(0), touch_origin.at(1), touch_origin.at(2)};
-      vector<double> temp = Vector_substraction(sent_eef_pos, fulcrum_point);
-      vector<double> unit_vector = {kuka_corrected_unit_vector[0], kuka_corrected_unit_vector[1],
-                                    kuka_corrected_unit_vector[2]};
-      vector<double> numerator = Vector_cross(temp, unit_vector);
+      vector<float> fulcrum_point = {startingPosition.at(0), startingPosition.at(1), startingPosition.at(2)};
+      vector<float> fulcrum_unit_vector = {kuka_corrected_unit_vector[0], kuka_corrected_unit_vector[1],
+                                           kuka_corrected_unit_vector[2]};
 
-      publishNewEEF_trials(pub, pub2, y_dif + shifted_origin.at(0), -x_dif + shifted_origin.at(1),
-                           z_dif + shifted_origin.at(2), phi_required, theta_required);
+      vector<double> eef = {y_dif + shifted_origin.at(0), -x_dif + shifted_origin.at(1), z_dif + shifted_origin.at(2)};
+      // Distance from line of the cone
+      vector<double> point_vector = {
+          fulcrum_point.at(0) - eef.at(0),
+          fulcrum_point.at(1) - eef.at(1),
+          fulcrum_point.at(2) - eef.at(2),
+      };
+
+      double projection = Vector_scalar(eef, point_vector);
+      // Distance required from the line of the cone
+      if (projection <= 0)
+      {
+        return false;
+      }
+
+      float first_total = sqrt(pow(point_vector.at(0), 2) + pow(point_vector.at(1), 2) + pow(point_vector.at(2), 2));
+
+      float angle = acos(projection / first_total) * 180 / M_PI;
+
+      cout << "ANGLE: " << angle << endl;
+      cout << "PROJECTION: " << projection << endl;
+
+      if (angle > 20 || angle < -20)
+      {
+        return false;
+      }
+      else
+      {
+        publishNewEEF_trials(pub, pub2, y_dif + shifted_origin.at(0), -x_dif + shifted_origin.at(1),
+                             z_dif + shifted_origin.at(2), phi_required, theta_required);
+      }
     }
     else
     {
@@ -521,7 +546,7 @@ int main(int argc, char* argv[])
 
   cout << "   Move the KUKA robot to the initial position, hit enter to confirm position ";
   ros::Subscriber sub2 = n.subscribe("/iiwa/state/JointPosition", 1000, moved_kuka);
-  ros::Subscriber sub4 = n.subscribe("/phantom/joint_states", 1000, moved_touch_joints);
+  ros::Subscriber sub4 = n.subscribe("/phantom/joint_states", 100, moved_touch_joints);
   char c = getch();
   c = getch();
   ros::spinOnce();
@@ -542,7 +567,7 @@ int main(int argc, char* argv[])
     cout << "   Phi: " << startingPosition.at(3) << endl;
     cout << "   Theta: " << startingPosition.at(4) << endl;
 
-    VectorXd move_by = kuka_corrected_unit_vector * 50;
+    VectorXd move_by = kuka_corrected_unit_vector * 100;
 
     float x_dif = move_by[0];
     float y_dif = move_by[1];
@@ -692,13 +717,13 @@ bool updated_inv_kin_kuka(double X, double Y, double Z, double eef_phi, double e
     float phi7_diff = phi7 - phi7_old_min;
     double phi_diff_minus = abs(phi1 - phi1_old) + abs(phi2 - phi2_old) + abs(phi3 - phi3_old) + abs(phi4 - phi4_old) +
                             abs(phi5 - phi5_old) + abs(phi6 - phi6_old) + abs(phi7 - phi7_old);
-    if (phi_diff_minus < 10)
+    if (phi_diff_minus < &&phi1_diff < 5 && phi2_diff < 5 && phi3_diff < 5 && phi4_diff < 5 && phi5_diff < 5 &&
+        phi6_diff < 5 && phi7_diff < 5)
     {
       skip_next = true;
       hasSolution = true;
       arm_angle_min = armAng;
       started_two = true;
-      minDiff = phi_diff_minus;
     }
   }
 
@@ -724,7 +749,8 @@ bool updated_inv_kin_kuka(double X, double Y, double Z, double eef_phi, double e
                                 abs(phi4 - phi4_old) + abs(phi5 - phi5_old) + abs(phi6 - phi6_old) +
                                 abs(phi7 - phi7_old);
 
-        if (minDiff > phi_diff_minus || !started_two)
+        if ((minDiff > phi_diff_minus || !started_two) && phi1_diff < 5 && phi2_diff < 5 && phi3_diff < 5 &&
+            phi4_diff < 5 && phi5_diff < 5 && phi6_diff < 5 && phi7_diff < 5)
         {
           minDiff = phi_diff_minus;
 
@@ -739,7 +765,7 @@ bool updated_inv_kin_kuka(double X, double Y, double Z, double eef_phi, double e
           arm_angle_min = test_arm_angle;
           started_two = true;
 
-          if (minDiff < 10)
+          if (minDiff < 3)
           {
             break;
           }
@@ -767,7 +793,8 @@ bool updated_inv_kin_kuka(double X, double Y, double Z, double eef_phi, double e
                                 abs(phi4 - phi4_old) + abs(phi5 - phi5_old) + abs(phi6 - phi6_old) +
                                 abs(phi7 - phi7_old);
 
-        if (minDiff > phi_diff_minus || !started_two)
+        if ((minDiff > phi_diff_minus || !started_two) && phi1_diff < 5 && phi2_diff < 5 && phi3_diff < 5 &&
+            phi4_diff < 5 && phi5_diff < 5 && phi6_diff < 5 && phi7_diff < 5)
         {
           minDiff = phi_diff_minus;
 
@@ -782,7 +809,7 @@ bool updated_inv_kin_kuka(double X, double Y, double Z, double eef_phi, double e
           arm_angle_min = test_arm_angle;
           started_two = true;
 
-          if (minDiff < 10)
+          if (minDiff < 3)
           {
             break;
           }
@@ -791,14 +818,13 @@ bool updated_inv_kin_kuka(double X, double Y, double Z, double eef_phi, double e
     }
   }
 
-  if (!hasSolution || minDiff > 10)
+  if (!hasSolution || arm_angle_min > 12)
   {
     return false;
   }
 
   armAng = arm_angle_min;
-  cout << "DONE LOOPING, ANGLE: " << armAng << endl;
-  cout << "DONE LOOPING, BEST: " << minDiff << endl;
+  cout << "DONE LOOPING, BEST: " << armAng << endl;
 
   // check for joint violation
   if (abs(phi4) >= phi4_max)
