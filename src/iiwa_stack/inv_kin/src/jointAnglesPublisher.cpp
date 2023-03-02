@@ -355,6 +355,7 @@ void printCommands()
   cout << "10: KUKA CONTROLLER" << endl;
   cout << "11: Touch 3D (Place in Origin Before Starting)" << endl;
   cout << "15: Required" << endl;
+  cout << "16: Exit" << endl;
 
   cout << "Command: ";
 }
@@ -575,6 +576,10 @@ int main(int argc, char* argv[])
       goToZero(pub);
     }
 
+    if (commandPicked == "16")
+    {
+      run = 0;
+    }
     else if (commandPicked == "15")
     {
       goToRequired(pub, pub2);

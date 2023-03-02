@@ -150,6 +150,7 @@ float currentPhi = 0.0;
 float currentTheta = 0.0;
 float final_theta;
 float final_phi;
+ofstream file;
 
 using namespace std;
 
@@ -202,9 +203,19 @@ bool publishNewEEF(ros::Publisher jointAnglesPublisher, ros::Publisher xyzPublis
     testing[1] = (float)manip.fk(q).htmTool(1, 2);
     testing[2] = (float)manip.fk(q).htmTool(2, 2);
 
+    file << "ANGLES FROM OLD" << endl;
+
+    file << "1: " << quantity.a1 << endl;
+    file << "2: " << quantity.a2 << endl;
+    file << "3: " << quantity.a3 << endl;
+    file << "4: " << quantity.a4 << endl;
+    file << "5: " << quantity.a5 << endl;
+    file << "6: " << quantity.a6 << endl;
+    file << "7: " << quantity.a7 << endl;
+
     jointPosition.position = quantity;
 
-    // jointAnglesPublisher.publish(jointPosition);
+    jointAnglesPublisher.publish(jointPosition);
     messageArray.data.clear();
     messageArray.data = {xPosition, yPosition, zPosition};
 
@@ -264,7 +275,18 @@ bool publishNewEEF_trials(ros::Publisher jointAnglesPublisher, ros::Publisher xy
 
     jointPosition.position = quantity;
 
-    // jointAnglesPublisher.publish(jointPosition);
+    jointAnglesPublisher.publish(jointPosition);
+    cout << "SENT ANGLES" << endl;
+    file << "ANGLES FROM NEW" << endl;
+
+    file << "1: " << quantity.a1 << endl;
+    file << "2: " << quantity.a2 << endl;
+    file << "3: " << quantity.a3 << endl;
+    file << "4: " << quantity.a4 << endl;
+    file << "5: " << quantity.a5 << endl;
+    file << "6: " << quantity.a6 << endl;
+    file << "7: " << quantity.a7 << endl;
+
     messageArray.data.clear();
     messageArray.data = {xPosition, yPosition, zPosition};
 
@@ -444,15 +466,17 @@ void moved_touch(const geometry_msgs::PoseStamped msg)
       float x_dif = move_by[0];
       float y_dif = move_by[1];
       float z_dif = move_by[2];
+      file << "PUBLISHED: " << startingPosition.at(0) << " " << startingPosition.at(1) << " " << startingPosition.at(2)
+           << " " << startingPosition.at(3) << " " << startingPosition.at(4) << " " << startingPosition.at(5) << " ";
 
       publishNewEEF_trials(pub, pub2, x_dif + startingPosition.at(0), y_dif + startingPosition.at(1),
                            z_dif + startingPosition.at(2), kuka_phi_initial, kuka_theta_initial);
     }
     else if (option == 2)
     {
-      float x_dif = 1000 * (x_pos - touch_origin.at(0)) / 2;
-      float y_dif = 1000 * (y_pos - touch_origin.at(1)) / 2;
-      float z_dif = 1000 * (z_pos - touch_origin.at(2)) / 2;
+      float x_dif = 1000 * (x_pos - touch_origin.at(0)) / 4;
+      float y_dif = 1000 * (y_pos - touch_origin.at(1)) / 4;
+      float z_dif = 1000 * (z_pos - touch_origin.at(2)) / 4;
 
       vector<float> fulcrum_to_eef_vector = {y_dif, -1 * x_dif, z_dif};
 
@@ -479,10 +503,6 @@ void moved_touch(const geometry_msgs::PoseStamped msg)
           eef.at(1) - fulcrum_point.at(1),
           eef.at(2) - fulcrum_point.at(2),
       };
-
-      cout << "EEf: " << eef.at(0) << " " << eef.at(1) << " " << eef.at(2) << endl;
-      cout << "point_vector: " << point_vector.at(0) << " " << point_vector.at(1) << " " << point_vector.at(2) << endl;
-      cout << "Shifted origin: " << shifted_origin.at(0) << " " << shifted_origin.at(1) << " " << shifted_origin.at(2);
 
       double projection = Vector_scalar(fulcrum_unit_vector, point_vector);
       cout << "PROJECTION: " << projection << endl;
@@ -528,6 +548,8 @@ void moved_touch(const geometry_msgs::PoseStamped msg)
 
 int main(int argc, char* argv[])
 {
+  file.open("testing.txt", std::ios_base::app);
+
   cout << "    ____                  _           _   ____       _           _   _" << endl;
   cout << "   / ___| _   _ _ __ __ _(_) ___ __ _| | |  _ \\ ___ | |__   ___ | |_(_) ___ ___" << endl;
   cout << "   \\___ \\| | | | '__/ _` | |/ __/ _` | | | |_) / _ \\| '_ \\ / _ \\| __| |/ __/ __| " << endl;
@@ -575,7 +597,7 @@ int main(int argc, char* argv[])
     cout << "   Phi: " << startingPosition.at(3) << endl;
     cout << "   Theta: " << startingPosition.at(4) << endl;
 
-    VectorXd move_by = kuka_corrected_unit_vector * 50;
+    VectorXd move_by = kuka_corrected_unit_vector * 25;
 
     float x_dif = move_by[0];
     float y_dif = move_by[1];
@@ -594,6 +616,11 @@ int main(int argc, char* argv[])
     cout << "   Phi: " << startingPosition.at(3) << endl;
     cout << "   Theta: " << startingPosition.at(4) << endl;
     cout << "   Arm Angle: " << armAngle << endl;
+    file << "PUBLISHED: " << startingPosition.at(0) << " " << startingPosition.at(1) << " " << startingPosition.at(2)
+         << " " << startingPosition.at(3) << " " << startingPosition.at(4) << " " << startingPosition.at(5) << " ";
+
+    publishNewEEF(pub, pub2, startingPosition.at(0), startingPosition.at(1), startingPosition.at(2),
+                  startingPosition.at(3), startingPosition.at(4), armAngle);
   }
 
   cout << endl;
@@ -603,7 +630,7 @@ int main(int argc, char* argv[])
 
   cout << endl << endl;
 
-  ros::Subscriber sub = n.subscribe("/phantom/pose", 1000, moved_touch);
+  ros::Subscriber sub = n.subscribe("/phantom/pose", 100, moved_touch);
 
   ros::Rate loop_rate(100);
   // armAngle = -218.4;
@@ -615,6 +642,14 @@ int main(int argc, char* argv[])
     ros::spinOnce();
   }
 }
+
+float phi1_old_min = 0;
+float phi2_old_min = 0;
+float phi3_old_min = 0;
+float phi4_old_min = 0;
+float phi5_old_min = 0;
+float phi6_old_min = 0;
+float phi7_old_min = 0;
 
 bool inv_kin_kuka(double X, double Y, double Z, double eef_phi, double eef_theta, double armAng_in, float* jointAngles)
 {
@@ -652,12 +687,6 @@ bool inv_kin_kuka(double X, double Y, double Z, double eef_phi, double eef_theta
                           abs(phi5 - phi5_old) + abs(phi6 - phi6_old) + abs(phi7 - phi7_old);
   cout << "Difference: " << phi_diff_minus << endl;
 
-  if (phi_diff_minus > 10)
-  {
-    cout << "GO SLOWER" << endl;
-    return false;
-  }
-
   // print out results ---------------------------------------------------------------------------
   // cout << "Angles [deg]: " << endl;
   // cout << "(new) Arm Angle: " << armAng << endl;
@@ -670,6 +699,14 @@ bool inv_kin_kuka(double X, double Y, double Z, double eef_phi, double eef_theta
   {
     return false;
   }
+
+  phi1_old_min = phi1;
+  phi2_old_min = phi2;
+  phi3_old_min = phi3;
+  phi4_old_min = phi4;
+  phi5_old_min = phi5;
+  phi6_old_min = phi6;
+  phi7_old_min = phi7;
   jointAngles[0] = (float)phi1_1;
   jointAngles[1] = (float)phi2_2;
   jointAngles[2] = (float)phi3_2;
@@ -683,58 +720,57 @@ bool inv_kin_kuka(double X, double Y, double Z, double eef_phi, double eef_theta
 
 bool started_two = false;
 
-float phi1_old_min = 0;
-float phi2_old_min = 0;
-float phi3_old_min = 0;
-float phi4_old_min = 0;
-float phi5_old_min = 0;
-float phi6_old_min = 0;
-float phi7_old_min = 0;
-
 bool updated_inv_kin_kuka(double X, double Y, double Z, double eef_phi, double eef_theta, float* jointAngles)
 {
   cout << "Commanded: \nPosition (X,Y,Z) [mm]: [" << X << ", " << Y << ", " << Z << "]" << endl;
   cout << "EEF Orientation (Phi, Theta) [deg]: [" << eef_phi << ", " << eef_theta << "]" << endl;
-  // cout << "Entered arm Angle [deg]: " << armAng << endl;
+  cout << "Entered arm Angle [deg]: " << armAng << endl;
   cout << "-------------------------------------" << endl;
 
   bool hasSolution = false;
   float minDiff = 15;
-  float phi_1_min = 0;
-  float phi_2_min = 0;
-  float phi_3_min = 0;
-  float phi_4_min = 0;
-  float phi_5_min = 0;
-  float phi_6_min = 0;
-  float phi_7_min = 0;
+
   float arm_angle_min = 0;
   bool skip_next = false;
 
   inv_kin_kuka_angle_calc(X, Y, Z, eef_phi, eef_theta, armAng);
+
+  // cout << "1: " << (abs(phi1) < phi1_max) << endl;
+  // cout << "2: " << (abs(phi2) < phi2_max) << endl;
+  // cout << "3: " << (abs(phi3) < phi3_max) << endl;
+  // cout << "4: " << (abs(phi4) < phi4_max) << endl;
+  // cout << "5: " << (abs(phi5) < phi5_max) << endl;
+  // cout << "6: " << (abs(phi6) < phi6_max) << endl;
+  // cout << "7: " << (abs(phi7) < phi7_max) << endl;
+
+  // cout << "8: " << (!isnan(phi1)) << endl;
+  // cout << "9: " << (!isnan(phi2)) << endl;
+  // cout << "10: " << (!isnan(phi3)) << endl;
+  // cout << "11: " << (!isnan(phi4)) << endl;
+  // cout << "12: " << (!isnan(phi5)) << endl;
+  // cout << "13: " << (!isnan(phi6)) << endl;
+  // cout << "14: " << (!isnan(phi7)) << endl;
+
   if (abs(phi1) < phi1_max && abs(phi2) < phi2_max && abs(phi3) < phi3_max && abs(phi4) < phi4_max &&
       abs(phi5) < phi5_max && abs(phi6) < phi6_max && abs(phi7) < phi7_max && abs(phi4) < phi4_max && !isnan(phi1_1) &&
       !isnan(phi2_2) && !isnan(phi3_2) && !isnan(phi4_2) && !isnan(phi5_2) && !isnan(phi6_2) && !isnan(phi7_2))
   {
-    float phi1_diff = phi1 - phi1_old_min;
-    float phi2_diff = phi2 - phi2_old_min;
-    float phi3_diff = phi3 - phi3_old_min;
-    float phi4_diff = phi4 - phi4_old_min;
-    float phi5_diff = phi5 - phi5_old_min;
-    float phi6_diff = phi6 - phi6_old_min;
-    float phi7_diff = phi7 - phi7_old_min;
-    double phi_diff_minus = abs(phi1 - phi1_old) + abs(phi2 - phi2_old) + abs(phi3 - phi3_old) + abs(phi4 - phi4_old) +
-                            abs(phi5 - phi5_old) + abs(phi6 - phi6_old) + abs(phi7 - phi7_old);
-    if (phi_diff_minus < minDiff)
+    double phi_diff = abs(phi1 - phi1_old_min) + abs(phi2 - phi2_old_min) + abs(phi3 - phi3_old_min) +
+                      abs(phi4 - phi4_old_min) + abs(phi5 - phi5_old_min) + abs(phi6 - phi6_old_min) +
+                      abs(phi7 - phi7_old_min);
+
+    if (phi_diff < minDiff || started_two == false)
     {
-      skip_next = true;
       hasSolution = true;
       arm_angle_min = armAng;
       started_two = true;
-      cout << "DID: " << phi_diff_minus << endl;
-    }
-    else
-    {
-      cout << "DID NOT: " << phi_diff_minus << endl;
+      minDiff = phi_diff;
+
+      if (minDiff < 0.02)
+      {
+        cout << "here" << endl;
+        skip_next = true;
+      }
     }
   }
 
@@ -744,82 +780,87 @@ bool updated_inv_kin_kuka(double X, double Y, double Z, double eef_phi, double e
     {
       inv_kin_kuka_angle_calc(X, Y, Z, eef_phi, eef_theta, test_arm_angle);
 
+      // cout << "1: " << (abs(phi1) < phi1_max) << endl;
+      // cout << "2: " << (abs(phi2) < phi2_max) << endl;
+      // cout << "3: " << (abs(phi3) < phi3_max) << endl;
+      // cout << "4: " << (abs(phi4) < phi4_max) << endl;
+      // cout << "5: " << (abs(phi5) < phi5_max) << endl;
+      // cout << "6: " << (abs(phi6) < phi6_max) << endl;
+      // cout << "7: " << (abs(phi7) < phi7_max) << endl;
+
+      // cout << "8: " << (!isnan(phi1)) << endl;
+      // cout << "9: " << (!isnan(phi2)) << endl;
+      // cout << "10: " << (!isnan(phi3)) << endl;
+      // cout << "11: " << (!isnan(phi4)) << endl;
+      // cout << "12: " << (!isnan(phi5)) << endl;
+      // cout << "13: " << (!isnan(phi6)) << endl;
+      // cout << "14: " << (!isnan(phi7)) << endl;
+
       if (abs(phi1) < phi1_max && abs(phi2) < phi2_max && abs(phi3) < phi3_max && abs(phi4) < phi4_max &&
-          abs(phi5) < phi5_max && abs(phi6) < phi6_max && abs(phi7) < phi7_max && abs(phi4) < phi4_max &&
-          !isnan(phi1_1) && !isnan(phi2_2) && !isnan(phi3_2) && !isnan(phi4_2) && !isnan(phi5_2) && !isnan(phi6_2) &&
-          !isnan(phi7_2))
+          abs(phi5) < phi5_max && abs(phi6) < phi6_max && abs(phi7) < phi7_max && !isnan(phi1) && !isnan(phi2) &&
+          !isnan(phi3) && !isnan(phi4) && !isnan(phi5) && !isnan(phi6) && !isnan(phi7))
       {
-        float phi1_diff = phi1 - phi1_old_min;
-        float phi2_diff = phi2 - phi2_old_min;
-        float phi3_diff = phi3 - phi3_old_min;
-        float phi4_diff = phi4 - phi4_old_min;
-        float phi5_diff = phi5 - phi5_old_min;
-        float phi6_diff = phi6 - phi6_old_min;
-        float phi7_diff = phi7 - phi7_old_min;
-        double phi_diff_minus = abs(phi1 - phi1_old) + abs(phi2 - phi2_old) + abs(phi3 - phi3_old) +
-                                abs(phi4 - phi4_old) + abs(phi5 - phi5_old) + abs(phi6 - phi6_old) +
-                                abs(phi7 - phi7_old);
+        double phi_diff = abs(phi1 - phi1_old_min) + abs(phi2 - phi2_old_min) + abs(phi3 - phi3_old_min) +
+                          abs(phi4 - phi4_old_min) + abs(phi5 - phi5_old_min) + abs(phi6 - phi6_old_min) +
+                          abs(phi7 - phi7_old_min);
 
-        if ((minDiff > phi_diff_minus || !started_two))
+        if ((minDiff > phi_diff || !started_two))
         {
-          minDiff = phi_diff_minus;
+          minDiff = phi_diff;
 
-          phi_1_min = phi1;
-          phi_2_min = phi1;
-          phi_3_min = phi1;
-          phi_4_min = phi1;
-          phi_5_min = phi1;
-          phi_6_min = phi1;
-          phi_7_min = phi1;
           hasSolution = true;
           arm_angle_min = test_arm_angle;
           started_two = true;
-
-          if (minDiff < 3)
+          if (minDiff < 0.02)
           {
+            skip_next = true;
             break;
           }
         }
       }
     }
+  }
 
+  if (!skip_next)
+  {
     for (float test_arm_angle = armAng - 15; test_arm_angle < armAng; test_arm_angle += 0.5)
     {
       inv_kin_kuka_angle_calc(X, Y, Z, eef_phi, eef_theta, test_arm_angle);
 
+      // cout << "1: " << (abs(phi1) < phi1_max) << endl;
+      // cout << "2: " << (abs(phi2) < phi2_max) << endl;
+      // cout << "3: " << (abs(phi3) < phi3_max) << endl;
+      // cout << "4: " << (abs(phi4) < phi4_max) << endl;
+      // cout << "5: " << (abs(phi5) < phi5_max) << endl;
+      // cout << "6: " << (abs(phi6) < phi6_max) << endl;
+      // cout << "7: " << (abs(phi7) < phi7_max) << endl;
+
+      // cout << "8: " << (!isnan(phi1)) << endl;
+      // cout << "9: " << (!isnan(phi2)) << endl;
+      // cout << "10: " << (!isnan(phi3)) << endl;
+      // cout << "11: " << (!isnan(phi4)) << endl;
+      // cout << "12: " << (!isnan(phi5)) << endl;
+      // cout << "13: " << (!isnan(phi6)) << endl;
+      // cout << "14: " << (!isnan(phi7)) << endl;
+
       if (abs(phi1) < phi1_max && abs(phi2) < phi2_max && abs(phi3) < phi3_max && abs(phi4) < phi4_max &&
-          abs(phi5) < phi5_max && abs(phi6) < phi6_max && abs(phi7) < phi7_max && abs(phi4) < phi4_max &&
-          !isnan(phi1_1) && !isnan(phi2_2) && !isnan(phi3_2) && !isnan(phi4_2) && !isnan(phi5_2) && !isnan(phi6_2) &&
-          !isnan(phi7_2))
+          abs(phi5) < phi5_max && abs(phi6) < phi6_max && abs(phi7) < phi7_max && !isnan(phi1) && !isnan(phi2) &&
+          !isnan(phi3) && !isnan(phi4) && !isnan(phi5) && !isnan(phi6) && !isnan(phi7))
       {
-        float phi1_diff = phi1 - phi1_old_min;
-        float phi2_diff = phi2 - phi2_old_min;
-        float phi3_diff = phi3 - phi3_old_min;
-        float phi4_diff = phi4 - phi4_old_min;
-        float phi5_diff = phi5 - phi5_old_min;
-        float phi6_diff = phi6 - phi6_old_min;
-        float phi7_diff = phi7 - phi7_old_min;
-        double phi_diff_minus = abs(phi1 - phi1_old) + abs(phi2 - phi2_old) + abs(phi3 - phi3_old) +
-                                abs(phi4 - phi4_old) + abs(phi5 - phi5_old) + abs(phi6 - phi6_old) +
-                                abs(phi7 - phi7_old);
+        double phi_diff = abs(phi1 - phi1_old_min) + abs(phi2 - phi2_old_min) + abs(phi3 - phi3_old_min) +
+                          abs(phi4 - phi4_old_min) + abs(phi5 - phi5_old_min) + abs(phi6 - phi6_old_min) +
+                          abs(phi7 - phi7_old_min);
 
-        if ((minDiff > phi_diff_minus || !started_two))
+        if ((minDiff > phi_diff || !started_two))
         {
-          minDiff = phi_diff_minus;
+          minDiff = phi_diff;
 
-          phi_1_min = phi1;
-          phi_2_min = phi1;
-          phi_3_min = phi1;
-          phi_4_min = phi1;
-          phi_5_min = phi1;
-          phi_6_min = phi1;
-          phi_7_min = phi1;
           hasSolution = true;
           arm_angle_min = test_arm_angle;
           started_two = true;
-
-          if (minDiff < 3)
+          if (minDiff < 0.02)
           {
+            skip_next = true;
             break;
           }
         }
@@ -827,27 +868,36 @@ bool updated_inv_kin_kuka(double X, double Y, double Z, double eef_phi, double e
     }
   }
 
-  cout << "arm_angle_min: " << arm_angle_min << endl;
-  cout << "hasSolution: " << hasSolution << endl;
-
-  if (!hasSolution || arm_angle_min > 12)
+  if (!hasSolution || minDiff > 3)
   {
-    cout << "here: " << arm_angle_min << endl;
+    if (!hasSolution)
+    {
+      file << -2 << endl;
+    }
+    else
+    {
+      file << -1 << endl;
+    }
+    cout << "WRONG LOOPING, BEST: " << minDiff << endl;
+
     return false;
   }
 
-  armAng = arm_angle_min;
-  cout << "DONE LOOPING, BEST: " << armAng << endl;
+  file << minDiff << endl;
+
+  cout << "DONE LOOPING, BEST: " << arm_angle_min << endl;
+  cout << "mIN dIFF: " << minDiff << endl;
+
+  inv_kin_kuka_angle_calc(X, Y, Z, eef_phi, eef_theta, arm_angle_min);
 
   // check for joint violation
   if (abs(phi4) >= phi4_max)
   {
-    cout << "Wrist too close to shoulder!" << endl;
     return false;
   }
 
-  else if (abs(phi1) >= phi1_max | abs(phi2) >= phi2_max | abs(phi3) >= phi3_max | abs(phi4) >= phi4_max |
-           abs(phi5) >= phi5_max | abs(phi6) >= phi6_max | abs(phi7) >= phi7_max)
+  else if (abs(phi1) >= phi1_max || abs(phi2) >= phi2_max || abs(phi3) >= phi3_max || abs(phi4) >= phi4_max ||
+           abs(phi5) >= phi5_max || abs(phi6) >= phi6_max || abs(phi7) >= phi7_max)
   {
     // armAngle = adapt_elbow_position(X, Y, Z, eef_phi, eef_theta, armAng_in);
     return false;
@@ -997,6 +1047,8 @@ double adapt_elbow_position(double X, double Y, double Z, double eef_phi, double
 
 void inv_kin_kuka_angle_calc(double X, double Y, double Z, double eef_phi, double eef_theta, double armAng)
 {
+  file << "published_equa: " << startingPosition.at(0) << " " << startingPosition.at(1) << " " << startingPosition.at(2)
+       << " " << startingPosition.at(3) << " " << startingPosition.at(4) << " " << startingPosition.at(5) << " ";
   // Check if target is in workspace (circle with radius 800mm) ----------------------------------
   vec_eef = {X, Y, Z};
 
