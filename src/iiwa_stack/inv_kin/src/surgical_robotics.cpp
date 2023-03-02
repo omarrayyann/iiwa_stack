@@ -157,12 +157,12 @@ using namespace std;
 bool publishNewEEF(ros::Publisher jointAnglesPublisher, ros::Publisher xyzPublisher, float xPosition, float yPosition,
                    float zPosition, float eefPhiOrientation, float eefThetaOrientation, float armAngle)
 {
-  if (zPosition <= 42)
-  {
-    ROS_INFO("DID NOT SEND ANGLES - SAFETY");
+  // if (zPosition <= 42)
+  // {
+  //   ROS_INFO("DID NOT SEND ANGLES - SAFETY");
 
-    return false;
-  }
+  //   return false;
+  // }
 
   std_msgs::Float32MultiArray messageArray;
   float* jointAngles = new float[7];
@@ -236,12 +236,12 @@ bool publishNewEEF(ros::Publisher jointAnglesPublisher, ros::Publisher xyzPublis
 bool publishNewEEF_trials(ros::Publisher jointAnglesPublisher, ros::Publisher xyzPublisher, float xPosition,
                           float yPosition, float zPosition, float eefPhiOrientation, float eefThetaOrientation)
 {
-  if (zPosition <= 42)
-  {
-    ROS_INFO("DID NOT SEND ANGLES - SAFETY");
+  // if (zPosition <= 42)
+  // {
+  //   ROS_INFO("DID NOT SEND ANGLES - SAFETY");
 
-    return false;
-  }
+  //   return false;
+  // }
 
   std_msgs::Float32MultiArray messageArray;
   float* jointAngles = new float[7];
@@ -548,6 +548,9 @@ void moved_touch(const geometry_msgs::PoseStamped msg)
 
 int main(int argc, char* argv[])
 {
+  file.open("testing.txt");
+  file << "";
+  file.close();
   file.open("testing.txt", std::ios_base::app);
 
   cout << "    ____                  _           _   ____       _           _   _" << endl;
@@ -776,7 +779,7 @@ bool updated_inv_kin_kuka(double X, double Y, double Z, double eef_phi, double e
 
   if (!skip_next)
   {
-    for (float test_arm_angle = armAng; test_arm_angle < armAng + 15; test_arm_angle += 0.5)
+    for (float test_arm_angle = armAng; test_arm_angle < armAng + 50; test_arm_angle += 0.5)
     {
       inv_kin_kuka_angle_calc(X, Y, Z, eef_phi, eef_theta, test_arm_angle);
 
@@ -823,7 +826,7 @@ bool updated_inv_kin_kuka(double X, double Y, double Z, double eef_phi, double e
 
   if (!skip_next)
   {
-    for (float test_arm_angle = armAng - 15; test_arm_angle < armAng; test_arm_angle += 0.5)
+    for (float test_arm_angle = armAng - 50; test_arm_angle < armAng; test_arm_angle += 0.5)
     {
       inv_kin_kuka_angle_calc(X, Y, Z, eef_phi, eef_theta, test_arm_angle);
 
@@ -890,6 +893,7 @@ bool updated_inv_kin_kuka(double X, double Y, double Z, double eef_phi, double e
 
   inv_kin_kuka_angle_calc(X, Y, Z, eef_phi, eef_theta, arm_angle_min);
 
+  armAng = arm_angle_min;
   // check for joint violation
   if (abs(phi4) >= phi4_max)
   {
