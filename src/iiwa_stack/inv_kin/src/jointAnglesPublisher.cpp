@@ -171,6 +171,9 @@ void init_udp();
 void die(char* s);
 vector<string> split(string s, string delimiter);
 string removeSpaces(string s);
+ros::Publisher pub;
+ros::Publisher pub2;
+ros::Publisher pubSim;
 
 #include <iostream>
 #include <conio.h>
@@ -287,6 +290,32 @@ bool publishNewEEF(ros::Publisher jointAnglesPublisher, ros::Publisher xyzPublis
     quantity.a6 = jointAngles[5] * M_PI / 180;
     quantity.a7 = jointAngles[6] * M_PI / 180;
 
+    // trajectory_msgs::JointTrajectory jointTrajectory;
+    // trajectory_msgs::JointTrajectoryPoint jointTrajectoryPoint;
+
+    // jointTrajectoryPoint.positions.push_back(quantity.a1);
+    // jointTrajectoryPoint.positions.push_back(quantity.a2);
+    // jointTrajectoryPoint.positions.push_back(quantity.a3);
+    // jointTrajectoryPoint.positions.push_back(quantity.a4);
+    // jointTrajectoryPoint.positions.push_back(quantity.a5);
+    // jointTrajectoryPoint.positions.push_back(quantity.a6);
+    // jointTrajectoryPoint.positions.push_back(quantity.a7);
+
+    // jointTrajectory.joint_names.push_back("iiwa_joint0");
+    // jointTrajectory.joint_names.push_back("iiwa_joint1");
+    // jointTrajectory.joint_names.push_back("iiwa_joint2");
+    // jointTrajectory.joint_names.push_back("iiwa_joint3");
+    // jointTrajectory.joint_names.push_back("iiwa_joint4");
+    // jointTrajectory.joint_names.push_back("iiwa_joint5");
+    // jointTrajectory.joint_names.push_back("iiwa_joint6");
+    // jointTrajectory.joint_names.push_back("iiwa_joint7");
+
+    // jointTrajectory.points.push_back(jointTrajectoryPoint);
+
+    // cout << "PUB SIM" << endl;
+
+    // pubSim.publish(jointTrajectory);
+
     jointPosition.position = quantity;
 
     jointAnglesPublisher.publish(jointPosition);
@@ -310,7 +339,7 @@ bool publishNewEEF(ros::Publisher jointAnglesPublisher, ros::Publisher xyzPublis
 bool goToRequired(ros::Publisher jointAnglesPublisher, ros::Publisher publisher2)
 
 {
-  publishNewEEF(jointAnglesPublisher, publisher2, 442.3, -91.359, 136.272, 108.282, 159.873, 145.648);
+  publishNewEEF(jointAnglesPublisher, publisher2, 501.47, -48.7559, 180, 110, 180, 159.106);
 }
 
 bool goToZero(ros::Publisher jointAnglesPublisher)
@@ -342,6 +371,7 @@ bool goToZero(ros::Publisher jointAnglesPublisher)
 }
 
 void printCommands()
+
 {
   cout << "-------------------------------" << endl;
   cout << "1: Move EEF" << endl;
@@ -367,8 +397,7 @@ vector<float> sentPoint;
 vector<float> origin;
 vector<vector<float>> points;
 int pointIndex = 0;
-ros::Publisher pub;
-ros::Publisher pub2;
+
 float tolerance;
 
 void commandCallback(const iiwa_msgs::CartesianPose& msg)
@@ -549,6 +578,8 @@ int main(int argc, char* argv[])
   ros::NodeHandle n;
   pub = n.advertise<iiwa_msgs::JointPosition>("/iiwa/command/JointPosition", 100);
 
+  pubSim =
+      n.advertise<trajectory_msgs::JointTrajectory>("/iiwa/PositionJointInterface_trajectory_controller/command", 1000);
   pub2 = n.advertise<std_msgs::Float32MultiArray>("eefGoal", 100);
 
   origin.push_back(450.0);

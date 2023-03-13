@@ -11,7 +11,6 @@
 #include <random>
 #include <memory>
 
-
 using namespace std;
 using namespace Eigen;
 
@@ -20,6 +19,14 @@ struct VectorFieldResult
     VectorXd vector;
     double distance;
     int index;
+};
+
+struct SoftSelectMinResult
+{
+    VectorXd selected;
+    double softMin;
+    double trueMin;
+    double residue;
 };
 
 class Utils
@@ -49,16 +56,34 @@ public:
 
     static Vector3d rpy(Matrix4d rot);
 
-    static double distanceAABB(GeometricPrimitives* objA, GeometricPrimitives* objB);
+    static double distanceAABB(GeometricPrimitives *objA, GeometricPrimitives *objB);
 
     static vector<VectorXd> upsample(vector<VectorXd> points, double dist);
 
-    static VectorFieldResult vectorField(VectorXd q, vector<VectorXd> points, double alpha = 3, bool openCurve = true, double percentLengthStop=0.8);
+    static VectorFieldResult vectorField(VectorXd q, vector<VectorXd> points, double alpha = 3, bool openCurve = true, double percentLengthStop = 0.8);
 
-    static VectorXd solveQP(MatrixXd H, VectorXd f, MatrixXd A = MatrixXd(0,0), VectorXd b = VectorXd(0), MatrixXd Aeq = MatrixXd(0,0), VectorXd beq = VectorXd(0));
+    static VectorXd solveQP(MatrixXd H, VectorXd f, MatrixXd A = MatrixXd(0, 0), VectorXd b = VectorXd(0), MatrixXd Aeq = MatrixXd(0, 0), VectorXd beq = VectorXd(0));
 
     static MatrixXd matrixVertStack(MatrixXd A1, MatrixXd A2);
 
     static VectorXd vectorVertStack(VectorXd v1, VectorXd v2);
-};
 
+    static VectorXd vectorVertStack(VectorXd v1, double v2);
+
+    static VectorXd vectorVertStack(double v1, VectorXd v2);
+
+    static string printNumber(double x, int nochar=8);
+
+    static string printVector(VectorXd v);
+
+    static string printVectorOctave(VectorXd v);
+
+    static string printMatrix(MatrixXd M);
+
+    static string printMatrixPython(MatrixXd M);
+
+    static double softMin(vector<double> v, double h);
+
+    static SoftSelectMinResult softSelectMin(vector<double> v, vector<VectorXd> vVec, double h);
+
+};

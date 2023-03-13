@@ -30,15 +30,19 @@ struct DistanceStruct
     Vector3d witnessB;
 };
 
+class PointCloud;
+
 class GeometricPrimitives
 {
 public:
     Matrix4d htm;
     virtual AxisAlignedBoundingBox getAABB() = 0;
-    virtual Vector3d projection(Vector3d point) = 0;
+    virtual double distanceToPoint(Vector3d point, double h = 0) = 0;
+    virtual Vector3d projection(Vector3d point, double h = 0) = 0;
     virtual GeometricPrimitives* copy() = 0;
+    virtual PointCloud generatePointCloud(double delta=0.01) = 0;
 
-    static DistanceStruct computeDist(GeometricPrimitives* objA, GeometricPrimitives* objB, Vector3d pointA0 = Vector3d::Random(), 
+    static DistanceStruct computeDist(GeometricPrimitives* objA, GeometricPrimitives* objB, Vector3d pointA0 = Vector3d::Random(), double h = 0,
     double tol=0.001);
 };
 
@@ -52,8 +56,10 @@ public:
     Box(Matrix4d htm0, double widthVal, double depthVal, double heightVal);
 
     AxisAlignedBoundingBox getAABB();
-    Vector3d projection(Vector3d point);
+    double distanceToPoint(Vector3d point, double h = 0);
+    Vector3d projection(Vector3d point, double h = 0);
     GeometricPrimitives* copy();
+    PointCloud generatePointCloud(double delta=0.01);
 };
 
 class Cylinder : public GeometricPrimitives
@@ -64,8 +70,10 @@ public:
 
     Cylinder(Matrix4d htm0, double radiusVal, double heightVal);
     AxisAlignedBoundingBox getAABB();
-    Vector3d projection(Vector3d point);
+    double distanceToPoint(Vector3d point, double h = 0);
+    Vector3d projection(Vector3d point, double h = 0);
     GeometricPrimitives* copy();
+    PointCloud generatePointCloud(double delta=0.01);
 
 };
 
@@ -76,7 +84,27 @@ public:
 
     Sphere(Matrix4d htm0, double radiusVal);
     AxisAlignedBoundingBox getAABB();
-    Vector3d projection(Vector3d point);
+    double distanceToPoint(Vector3d point, double h = 0);
+    Vector3d projection(Vector3d point, double h = 0);
     GeometricPrimitives* copy();
+    PointCloud generatePointCloud(double delta=0.01);
+
+};
+
+class PointCloud : public GeometricPrimitives
+{
+public:
+    vector<Vector3d> points;
+    double minx, maxx;
+    double miny, maxy;
+    double minz, maxz;
+
+
+    PointCloud(vector<Vector3d> pointsVal);
+    AxisAlignedBoundingBox getAABB();
+    double distanceToPoint(Vector3d point, double h = 0);
+    Vector3d projection(Vector3d point, double h = 0);
+    GeometricPrimitives* copy();
+    PointCloud generatePointCloud(double delta=0.01);
 
 };

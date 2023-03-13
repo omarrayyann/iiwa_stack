@@ -1,6 +1,4 @@
-
-
-#include "utils.cpp"
+#include "utils.h"
 #include "robot.h"
 #include "distance.h"
 
@@ -13,6 +11,9 @@
 #include <random>
 #include <memory>
 #include <chrono>
+
+#include <ros/ros.h>
+#include <ros/service.h>
 
 using namespace std;
 using namespace Eigen;
@@ -267,6 +268,70 @@ Manipulator::Manipulator(int no)
   htmDHnToTool = Matrix4d::Identity();
 }
 
+Manipulator Manipulator::createKukaKR5()
+{
+  // Create empty manipulator
+  Manipulator manip(6);
+
+  // Create links
+  double d_bs = 0.340;
+  double d_se = 0.400;
+  double d_ew = 0.400;
+  double d_wf = 0.126;
+
+  vector<Link> linksKuka;
+
+  Link link1(1, 0, 0.335, -M_PI / 2, 0.075, 0, "j1");
+  Link link2(2, 0, 0, 0, 0.365, 0, "j2");
+  Link link3(3, 0, 0, M_PI / 2, 0.090, 0, "j3");
+  Link link4(4, 0, -0.405, -M_PI / 2, 0, 0, "j4");
+  Link link5(5, 0, 0, -M_PI / 2, 0, 0, "j5");
+  Link link6(6, 0, 0.080, 0, 0, 0, "j6");
+
+  linksKuka.push_back(link1);
+  linksKuka.push_back(link2);
+  linksKuka.push_back(link3);
+  linksKuka.push_back(link4);
+  linksKuka.push_back(link5);
+  linksKuka.push_back(link6);
+
+  manip.links = linksKuka;
+
+  // Create collision objects
+  FKResult fkres0 = manip.fk();
+
+  // For the first link
+  Cylinder* kr5C0_0 =
+      new Cylinder(Utils::trn(-0.075, 0.170, 0) * Utils::roty(M_PI / 2) * Utils::rotx(M_PI / 2), 0.12, 0.33);
+  manip.links[0].colObjs.push_back(kr5C0_0);
+  // manip.links[0].htmCols.push_back(fkres0.htmDH[0].inverse() * (*kr5C0_0).htm);
+  manip.links[0].htmCols.push_back((*kr5C0_0).htm);
+
+  Cylinder* kr5C0_1 = new Cylinder(Utils::trn(0, 0, 0.030) * Utils::rotz(M_PI / 2) * Utils::rotx(M_PI), 0.095, 0.30);
+  manip.links[0].colObjs.push_back(kr5C0_1);
+  // manip.links[0].htmCols.push_back(fkres0.htmDH[0].inverse() * (*kr5C0_1).htm);
+  manip.links[0].htmCols.push_back((*kr5C0_1).htm);
+
+  // For the second link
+  Box* kr5C1_0 = new Box(Utils::trn(-0.200, 0.020, 0.12) * Utils::roty(M_PI / 2), 0.1, 0.16, 0.5);
+  manip.links[1].colObjs.push_back(kr5C1_0);
+  // manip.links[1].htmCols.push_back(fkres0.htmDH[1].inverse() * (*kr5C1_0).htm);
+  manip.links[1].htmCols.push_back((*kr5C1_0).htm);
+
+  Cylinder* kr5C1_1 = new Cylinder(Utils::trn(0, 0, 0.040) * Utils::rotz(M_PI) * Utils::rotx(M_PI), 0.095, 0.28);
+  manip.links[1].colObjs.push_back(kr5C1_1);
+  // manip.links[1].htmCols.push_back(fkres0.htmDH[1].inverse() * (*kr5C1_1).htm);
+  manip.links[1].htmCols.push_back((*kr5C1_1).htm);
+
+  // For the third link
+  Box* kr5C2_0 = new Box(Utils::trn(0, 0, -0.224) * Utils::rotz(-M_PI / 2) * Utils::rotx(-M_PI / 2), 0.143, 0.45, 0.12);
+  manip.links[2].colObjs.push_back(kr5C2_0);
+  // manip.links[2].htmCols.push_back(fkres0.htmDH[2].inverse() * (*kr5C2_0).htm);
+  manip.links[2].htmCols.push_back((*kr5C2_0).htm);
+
+  return manip;
+}
+
 Manipulator Manipulator::createGeoTouch()
 {
   // Create empty manipulator
@@ -429,6 +494,133 @@ Manipulator Manipulator::createKukaIIWA()
   return manip;
 }
 
+Manipulator Manipulator::createKukaIIWAWithTool()
+{
+  // Create empty manipulator
+  Manipulator manip(7);
+
+  // Create links
+  double d_bs = 0.340;
+  double d_se = 0.400;
+  double d_ew = 0.400;
+  double d_wf = 0.152;
+
+  vector<Link> linksKuka;
+
+  Link link1(1, 0, d_bs, -M_PI / 2, 0, 0, "iiwa_joint_1");
+  Link link2(2, 0, 0, M_PI / 2, 0, 0, "iiwa_joint_2");
+  Link link3(3, 0, d_se, M_PI / 2, 0, 0, "iiwa_joint_3");
+  Link link4(4, 0, 0, -M_PI / 2, 0, 0, "iiwa_joint_4");
+  Link link5(5, 0, d_ew, -M_PI / 2, 0, 0, "iiwa_joint_5");
+  Link link6(6, 0, 0, M_PI / 2, 0, 0, "iiwa_joint_6");
+  Link link7(7, 0, d_wf, 0, 0, 0, "iiwa_joint_7");
+
+  linksKuka.push_back(link1);
+  linksKuka.push_back(link2);
+  linksKuka.push_back(link3);
+  linksKuka.push_back(link4);
+  linksKuka.push_back(link5);
+  linksKuka.push_back(link6);
+  linksKuka.push_back(link7);
+
+  manip.links = linksKuka;
+
+  // Create collision objects
+  FKResult fkres0 = manip.fk();
+
+  double dz = -0.02;
+
+  // For the first link
+  Cylinder* iiwaC0_0 = new Cylinder(Utils::trn(0, 0, 0.15 + dz), 0.1, 0.12);
+  manip.links[0].colObjs.push_back(iiwaC0_0);
+  manip.links[0].htmCols.push_back(fkres0.htmDH[0].inverse() * (*iiwaC0_0).htm);
+  manip.links[0].nameObjs.push_back("c0_0");
+
+  Sphere* iiwaC0_1 = new Sphere(Utils::trn(0.01, 0, 0.33 + dz), 0.125);
+  manip.links[0].colObjs.push_back(iiwaC0_1);
+  manip.links[0].htmCols.push_back(fkres0.htmDH[0].inverse() * (*iiwaC0_1).htm);
+  manip.links[0].nameObjs.push_back("c0_1");
+
+  // For the second link
+  Sphere* iiwaC1_0 = new Sphere(Utils::trn(0, 0.03, 0.38 + dz), 0.11);
+  manip.links[1].colObjs.push_back(iiwaC1_0);
+  manip.links[1].htmCols.push_back(fkres0.htmDH[1].inverse() * (*iiwaC1_0).htm);
+  manip.links[1].nameObjs.push_back("c1_0");
+
+  Cylinder* iiwaC1_1 = new Cylinder(Utils::trn(0, 0, 0.54 + dz), 0.08, 0.125);
+  manip.links[1].colObjs.push_back(iiwaC1_1);
+  manip.links[1].htmCols.push_back(fkres0.htmDH[1].inverse() * (*iiwaC1_1).htm);
+  manip.links[1].nameObjs.push_back("c1_1");
+
+  // For the third link
+  Cylinder* iiwaC2_0 = new Cylinder(Utils::trn(0, 0, 0.66 + 2 * dz), 0.08, 0.1);
+  manip.links[2].colObjs.push_back(iiwaC2_0);
+  manip.links[2].htmCols.push_back(fkres0.htmDH[2].inverse() * (*iiwaC2_0).htm);
+  manip.links[2].nameObjs.push_back("c2_0");
+
+  Sphere* iiwaC2_1 = new Sphere(Utils::trn(0, 0.01, 0.75 + 2 * dz), 0.11);
+  manip.links[2].colObjs.push_back(iiwaC2_1);
+  manip.links[2].htmCols.push_back(fkres0.htmDH[2].inverse() * (*iiwaC2_1).htm);
+  manip.links[2].nameObjs.push_back("c2_1");
+
+  // For the fourth link
+  Sphere* iiwaC3_0 = new Sphere(Utils::trn(0, -0.035, 0.803 + 2 * dz), 0.09);
+  manip.links[3].colObjs.push_back(iiwaC3_0);
+  manip.links[3].htmCols.push_back(fkres0.htmDH[3].inverse() * (*iiwaC3_0).htm);
+  manip.links[3].nameObjs.push_back("c3_0");
+
+  Cylinder* iiwaC3_1 = new Cylinder(Utils::trn(0, 0, 0.935 + 2 * dz), 0.075, 0.125);
+  manip.links[3].colObjs.push_back(iiwaC3_1);
+  manip.links[3].htmCols.push_back(fkres0.htmDH[3].inverse() * (*iiwaC3_1).htm);
+  manip.links[3].nameObjs.push_back("c3_1");
+
+  // For the fifth link
+  Cylinder* iiwaC4_0 = new Cylinder(Utils::trn(0, 0, 1.052 + 2 * dz), 0.075, 0.11);
+  manip.links[4].colObjs.push_back(iiwaC4_0);
+  manip.links[4].htmCols.push_back(fkres0.htmDH[4].inverse() * (*iiwaC4_0).htm);
+  manip.links[4].nameObjs.push_back("c4_0");
+
+  Box* iiwaC4_1 = new Box(Utils::trn(0, -0.08, 1.15 + 2 * dz), 0.12, 0.04, 0.17);
+  manip.links[4].colObjs.push_back(iiwaC4_1);
+  manip.links[4].htmCols.push_back(fkres0.htmDH[4].inverse() * (*iiwaC4_1).htm);
+  manip.links[4].nameObjs.push_back("c4_1");
+
+  // For the sixth link
+  Cylinder* iiwaC5_0 = new Cylinder(Utils::trn(0, 0, 1.203 + 2 * dz), 0.075, 0.24);
+  manip.links[5].colObjs.push_back(iiwaC5_0);
+  manip.links[5].htmCols.push_back(fkres0.htmDH[5].inverse() * (*iiwaC5_0).htm);
+  manip.links[5].nameObjs.push_back("c5_0");
+
+  // For the seventh link
+  Box* iiwaC6_0 = new Box(Utils::trn(0.1, 0, 1.58 + 2 * dz - 0.14 / 2 + 0.02 + 0.015), 0.20, 0.1, 0.6 - 0.14 - 0.015);
+  manip.links[6].colObjs.push_back(iiwaC6_0);
+  manip.links[6].htmCols.push_back(fkres0.htmDH[6].inverse() * (*iiwaC6_0).htm);
+  manip.links[6].nameObjs.push_back("c6_0");
+
+  // Create joint limits (in rad)
+  double dq = 0.087;
+
+  VectorXd qMin(7);
+  qMin << -2.967055 + dq, -2.09435 + dq, -2.967055 + dq, -2.09435 + dq, -2.937055 + dq, -2.09435 + dq, -3.054325 + dq;
+
+  VectorXd qMax(7);
+  qMax << 2.967055 - dq, 2.09435 - dq, 2.967055 - dq, 2.09435 - dq, 2.937055 - dq, 2.09435 - dq, 3.054325 - dq;
+
+  manip.qMin = qMin;
+  manip.qMax = qMax;
+
+  // Create joint velocity limits (in rad/s)
+  VectorXd qDotMin(7);
+  qDotMin << -1.482, -1.482, -1.740, -1.307, -2.268, -2.355, -2.356;
+
+  VectorXd qDotMax(7);
+  qDotMax << 1.482, 1.482, 1.740, 1.307, 2.268, 2.355, 2.356;
+
+  manip.qDotMin = qDotMin;
+  manip.qDotMax = qDotMax;
+
+  return manip;
+}
 void Manipulator::setConfig(VectorXd q, Matrix4d customHtmWorldToBase)
 {
   // Set the configuration
@@ -608,13 +800,14 @@ VectorXd Manipulator::ik(Matrix4d desHtm, VectorXd q0, double pTol, double aTol,
     }
   }
 
-  cout << iter << std::endl;
+  // cout << iter << std::endl;
   return q;
 }
 
 DistanceRobotObjResult Manipulator::computeDistToObj(GeometricPrimitives* obj, VectorXd q,
                                                      Matrix4d customHtmWorldToBase,
-                                                     DistanceRobotObjResult* oldDistStruct, double tol, double maxDist)
+                                                     DistanceRobotObjResult* oldDistStruct, double tol, double h,
+                                                     double maxDist)
 {
   DistanceRobotObjResult drs(this->noJoints);
 
@@ -656,7 +849,7 @@ DistanceRobotObjResult Manipulator::computeDistToObj(GeometricPrimitives* obj, V
         else
           pointObj = Vector3d::Random();
 
-        DistanceStruct ds = GeometricPrimitives::computeDist(obj, listObjsCopy[i][j], pointObj, tol);
+        DistanceStruct ds = GeometricPrimitives::computeDist(obj, listObjsCopy[i][j], pointObj, h, tol);
 
         DistanceLinkObjResult dloNew;
         dloNew.colObjLinkNumber = j;
@@ -683,7 +876,8 @@ DistanceRobotObjResult Manipulator::computeDistToObj(GeometricPrimitives* obj, V
 }
 
 DistanceRobotAutoResult Manipulator::computeDistAuto(VectorXd q, Matrix4d customHtmWorldToBase,
-                                                     DistanceRobotAutoResult* oldDistStruct, double tol, double maxDist)
+                                                     DistanceRobotAutoResult* oldDistStruct, double tol, double h,
+                                                     double maxDist)
 {
   DistanceRobotAutoResult drs(this->noJoints);
 
@@ -743,8 +937,8 @@ DistanceRobotAutoResult Manipulator::computeDistAuto(VectorXd q, Matrix4d custom
       else
         pointColObj1 = Vector3d::Random();
 
-      DistanceStruct ds =
-          GeometricPrimitives::computeDist(listObjsCopy[ind1][indCol1], listObjsCopy[ind2][indCol2], pointColObj1, tol);
+      DistanceStruct ds = GeometricPrimitives::computeDist(listObjsCopy[ind1][indCol1], listObjsCopy[ind2][indCol2],
+                                                           pointColObj1, h, tol);
 
       DistanceLinkLinkResult dllNew;
 
@@ -779,9 +973,7 @@ DistanceRobotAutoResult Manipulator::computeDistAuto(VectorXd q, Matrix4d custom
   return drs;
 }
 
-ConstControlResult Manipulator::constControl(Matrix4d taskHtm, vector<GeometricPrimitives*> obstacles,
-                                             ConstControlResult* oldControlStruct, ConstControlParam param, VectorXd q,
-                                             Matrix4d customHtmWorldToBase)
+ConstControlResult Manipulator::velocityConstControl(VectorXd q, VelocityConstControlParam param)
 {
   ConstControlResult ccr;
 
@@ -793,10 +985,11 @@ ConstControlResult Manipulator::constControl(Matrix4d taskHtm, vector<GeometricP
 
   // Create all constraints with collisions with the obstacles
   DistanceRobotObjResult dlo, dloOld;
-  for (int i = 0; i < obstacles.size(); i++)
+  for (int i = 0; i < param.obstacles.size(); i++)
   {
-    dloOld = (oldControlStruct == NULL) ? NULL : oldControlStruct->distancesObjResult[i];
-    dlo = this->computeDistToObj(obstacles[i], q, customHtmWorldToBase, &dloOld, param.tol, param.maxDistAABB);
+    dloOld = (param.oldControlStruct == NULL) ? NULL : param.oldControlStruct->distancesObjResult[i];
+    dlo = this->computeDistToObj(param.obstacles[i], q, param.customHtmWorldToBase, &dloOld, param.tol, param.h,
+                                 param.maxDistAABB);
 
     ccr.distancesObjResult.push_back(dlo);
 
@@ -812,8 +1005,8 @@ ConstControlResult Manipulator::constControl(Matrix4d taskHtm, vector<GeometricP
   if (param.considerAutoCollision)
   {
     DistanceRobotAutoResult dra, draOld;
-    draOld = (oldControlStruct == NULL) ? NULL : oldControlStruct->distanceAutoResult;
-    dra = this->computeDistAuto(q, customHtmWorldToBase, &draOld, param.tol, param.maxDistAABB);
+    draOld = (param.oldControlStruct == NULL) ? NULL : param.oldControlStruct->distanceAutoResult;
+    dra = this->computeDistAuto(q, param.customHtmWorldToBase, &draOld, param.tol, param.h, param.maxDistAABB);
 
     ccr.distanceAutoResult = dra;
 
@@ -870,7 +1063,7 @@ ConstControlResult Manipulator::constControl(Matrix4d taskHtm, vector<GeometricP
   }
 
   // Create H and f matrices
-  TaskResult tr = this->taskFunction(taskHtm, q, customHtmWorldToBase);
+  TaskResult tr = this->taskFunction(param.taskHtm, q, param.customHtmWorldToBase);
 
   MatrixXd H = 2 * (tr.jacTask.transpose() * tr.jacTask + param.eps * I);
 
@@ -903,13 +1096,172 @@ ConstControlResult Manipulator::constControl(Matrix4d taskHtm, vector<GeometricP
   return ccr;
 }
 
-FreeConfigResult Manipulator::checkFreeConfig(vector<GeometricPrimitives*> obstacles, VectorXd q,
-                                              Matrix4d customHtmWorldToBase, FreeConfigParam param)
+ConstControlResult Manipulator::accelerationConstControl(VectorXd qdot, VectorXd q, AccelerationConstControlParam param)
+{
+  ConstControlResult ccr;
+
+  auto start = std::chrono::high_resolution_clock::now();
+
+  MatrixXd A(0, this->noJoints);
+  VectorXd b(0), btemp;
+  MatrixXd I = MatrixXd::Identity(this->noJoints, this->noJoints);
+
+  // Create all constraints with collisions with the obstacles
+  DistanceRobotObjResult dlo, dloOld, dloNext;
+
+  for (int i = 0; i < param.obstacles.size(); i++)
+  {
+    dloOld = (param.oldControlStruct == NULL) ? NULL : param.oldControlStruct->distancesObjResult[i];
+    dlo = this->computeDistToObj(param.obstacles[i], q, param.customHtmWorldToBase, &dloOld, param.tol, param.h,
+                                 param.maxDistAABB);
+    dloNext = this->computeDistToObj(param.obstacles[i], q + qdot * param.dt, param.customHtmWorldToBase, &dlo,
+                                     param.tol, param.h, param.maxDistAABB);
+
+    ccr.distancesObjResult.push_back(dlo);
+
+    for (int j = 0; j < dlo.noElements; j++)
+    {
+      // Try to find the respective element in dloNext.
+
+      DistanceLinkObjResult* dlorNext = dloNext.getItem(dlo[j].linkNumber, dlo[j].colObjLinkNumber);
+      if (dlorNext != NULL)
+      {
+        double dist = dlo[j].distance - param.distSafeObs;
+        double distDot = (dlorNext->distance - dlo[j].distance) / param.dt;
+        VectorXd gradDot = (dlorNext->jacDist - dlo[j].jacDist) / param.dt;
+        double coriolisCentrifugal = (gradDot.transpose() * qdot)[0];
+        double K = param.etaObs;
+
+        A = Utils::matrixVertStack(A, dlo[j].jacDist.transpose());
+        MatrixXd bn(1, 1);
+        bn << -coriolisCentrifugal - 2 * K * distDot - K * K * dist;
+        b = Utils::matrixVertStack(b, bn);
+      }
+    }
+  }
+
+  // Create all constraints with auto collisions
+
+  if (param.considerAutoCollision)
+  {
+    DistanceRobotAutoResult dra, draOld, draNext;
+
+    draOld = (param.oldControlStruct == NULL) ? NULL : param.oldControlStruct->distanceAutoResult;
+    dra = this->computeDistAuto(q, param.customHtmWorldToBase, &draOld, param.tol, param.h, param.maxDistAABB);
+    draNext = this->computeDistAuto(q + qdot * param.dt, param.customHtmWorldToBase, &dra, param.tol, param.h,
+                                    param.maxDistAABB);
+
+    ccr.distanceAutoResult = dra;
+
+    for (int j = 0; j < dra.noElements; j++)
+    {
+      // Try to find the respective element in draNext.
+
+      DistanceLinkLinkResult* dllrNext =
+          draNext.getItem(dra[j].linkNumber1, dra[j].colObjLinkNumber1, dra[j].linkNumber2, dra[j].colObjLinkNumber2);
+      if (dllrNext != NULL)
+      {
+        double dist = dra[j].distance - param.distSafeAuto;
+        double distDot = (dllrNext->distance - dra[j].distance) / param.dt;
+        VectorXd gradDot = (dllrNext->jacDist - dra[j].jacDist) / param.dt;
+        double coriolisCentrifugal = (gradDot.transpose() * qdot)[0];
+        double K = param.etaAuto;
+
+        A = Utils::matrixVertStack(A, dra[j].jacDist.transpose());
+        MatrixXd bn(1, 1);
+        bn << -coriolisCentrifugal - 2 * K * distDot - K * K * dist;
+        b = Utils::matrixVertStack(b, bn);
+      }
+    }
+  }
+
+  // Create all joint position limit  constraints
+  if (param.considerJointPositionLimits)
+  {
+    double K = param.etaJointPosition;
+    VectorXd q_int = q.rows() == 0 ? this->q : q;
+
+    A = Utils::matrixVertStack(A, I);
+
+    btemp = VectorXd::Zero(this->noJoints);
+
+    for (int i = 0; i < this->noJoints; i++)
+      btemp[i] = -2 * K * qdot[i] - K * K * (q_int[i] - this->qMin[i] - param.distSafeJoint);
+
+    b = Utils::vectorVertStack(b, btemp);
+
+    A = Utils::matrixVertStack(A, -I);
+
+    btemp = VectorXd::Zero(this->noJoints);
+
+    for (int i = 0; i < this->noJoints; i++)
+      btemp[i] = 2 * K * qdot[i] - K * K * (this->qMax[i] - q_int[i] - param.distSafeJoint);
+
+    b = Utils::vectorVertStack(b, btemp);
+  }
+
+  // Create all joint velocity limit  constraints
+  if (param.considerJointSpeedLimits)
+  {
+    double K = param.etaJointVelocity;
+
+    A = Utils::matrixVertStack(A, I);
+
+    btemp = VectorXd::Zero(this->noJoints);
+
+    for (int i = 0; i < this->noJoints; i++) btemp[i] = -K * (qdot[i] - this->qDotMin[i]);
+
+    b = Utils::vectorVertStack(b, btemp);
+
+    A = Utils::matrixVertStack(A, -I);
+
+    btemp = VectorXd::Zero(this->noJoints);
+
+    for (int i = 0; i < this->noJoints; i++) btemp[i] = -K * (this->qDotMax[i] - qdot[i]);
+
+    b = Utils::vectorVertStack(b, btemp);
+  }
+
+  // Create H and f matrices
+  TaskResult tr = this->taskFunction(param.taskHtm, q, param.customHtmWorldToBase);
+  TaskResult trNext = this->taskFunction(param.taskHtm, q + qdot * param.dt, param.customHtmWorldToBase);
+
+  MatrixXd H = 2 * (tr.jacTask.transpose() * tr.jacTask + param.beta * I);
+
+  VectorXd coriolisCentrifugal = ((trNext.jacTask - tr.jacTask) / (param.dt)) * qdot;
+
+  VectorXd rdot = (trNext.task - tr.task) / (param.dt);
+
+  double K = param.kconv;
+
+  VectorXd f =
+      2 * (tr.jacTask.transpose() * (coriolisCentrifugal + 2 * K * rdot + K * K * tr.task) + param.beta * qdot);
+
+  ccr.A = A;
+  ccr.b = b;
+  ccr.H = H;
+  ccr.f = f;
+
+  // Solve the optimization problem
+  VectorXd u = Utils::solveQP(H, f, A, b);
+
+  auto stop = std::chrono::high_resolution_clock::now();
+  auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
+
+  ccr.action = u;
+  ccr.milisecondsSpent = duration.count() / 1000.0;
+  ccr.taskResult = tr;
+  ccr.feasible = u.rows() > 0;
+
+  return ccr;
+}
+
+FreeConfigResult Manipulator::checkFreeConfig(VectorXd q, FreeConfigParam param)
 {
   FreeConfigResult fcr;
 
   VectorXd q_int = q.rows() == 0 ? this->q : q;
-  Matrix4d htmNow = customHtmWorldToBase(3, 3) == 0 ? this->htmWorldToBase : customHtmWorldToBase;
+  Matrix4d htmNow = param.customHtmWorldToBase(3, 3) == 0 ? this->htmWorldToBase : param.customHtmWorldToBase;
   htmNow = htmNow * this->htmBaseToDH0;
 
   int i = 0;
@@ -948,9 +1300,9 @@ FreeConfigResult Manipulator::checkFreeConfig(vector<GeometricPrimitives*> obsta
 
   // Prepare for collision or auto collision detection
   vector<vector<GeometricPrimitives*>> listObjsCopy;
-  if (fcr.isFree && (param.considerAutoCollision || obstacles.size() > 0))
+  if (fcr.isFree && (param.considerAutoCollision || param.obstacles.size() > 0))
   {
-    FKResult fkres = this->jacGeo(q, customHtmWorldToBase);
+    FKResult fkres = this->jacGeo(q, param.customHtmWorldToBase);
 
     for (i = 0; i < this->noJoints; i++)
     {
@@ -997,7 +1349,7 @@ FreeConfigResult Manipulator::checkFreeConfig(vector<GeometricPrimitives*> obsta
           Utils::distanceAABB(listObjsCopy[ind1][indCol1], listObjsCopy[ind2][indCol2]) <= param.maxDistAABB)
       {
         DistanceStruct ds = GeometricPrimitives::computeDist(listObjsCopy[ind1][indCol1], listObjsCopy[ind2][indCol2],
-                                                             Vector3d::Random(), param.tol);
+                                                             Vector3d::Random(), param.h, param.tol);
 
         fcr.isFree = ds.distance > param.distSafeAuto;
 
@@ -1023,12 +1375,18 @@ FreeConfigResult Manipulator::checkFreeConfig(vector<GeometricPrimitives*> obsta
     while (fcr.isFree && j < this->links[i].colObjs.size())
     {
       k = 0;
-      while (fcr.isFree && k < obstacles.size())
+      while (fcr.isFree && k < param.obstacles.size())
       {
-        if (param.maxDistAABB >= 10000 || Utils::distanceAABB(obstacles[k], listObjsCopy[i][j]) <= param.maxDistAABB)
+        // Check if the combination of link i and obstacle k is not on the ignore list
+        bool ignoreCol = false;
+        for (int s = 0; s < param.ignoreCol.size(); s++)
+          ignoreCol = ignoreCol || ((param.ignoreCol[s].linkNo == i) && (param.ignoreCol[s].obsNo == k));
+
+        if ((!ignoreCol) && (param.maxDistAABB >= 10000 ||
+                             Utils::distanceAABB(param.obstacles[k], listObjsCopy[i][j]) <= param.maxDistAABB))
         {
-          DistanceStruct ds =
-              GeometricPrimitives::computeDist(obstacles[k], listObjsCopy[i][j], Vector3d::Random(), param.tol);
+          DistanceStruct ds = GeometricPrimitives::computeDist(param.obstacles[k], listObjsCopy[i][j],
+                                                               Vector3d::Random(), param.h, param.tol);
           fcr.isFree = ds.distance > param.distSafeObs;
 
           if (!fcr.isFree)

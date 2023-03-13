@@ -44,7 +44,7 @@
 #include <sensor_msgs/JointState.h>
 #include <conio.h>
 #include "robot.cpp"
-#include "utils.h"
+#include "utils.cpp"
 #include "distance.cpp"
 
 using namespace std;
@@ -53,14 +53,12 @@ using namespace std;
 #define pi 3.14159265
 double deg2rad = pi / 180.0;
 bool axis_limit_violation = false;
-// vectors
 vector<double> ex = {1, 0, 0};
 vector<double> ey = {0, 1, 0};
 vector<double> ez = {0, 0, 1};
 vector<double> pw = {0, 0, 0};
 vector<double> psw = {0, 0, 0};
 vector<double> pc = {0, 0, 0};
-// angles [deg]
 double phi1 = 0;
 double phi1_1 = 0;
 double phi1_2 = 0;
@@ -82,7 +80,6 @@ double phi6_2 = 0;
 double phi7 = 0;
 double phi7_1 = 0;
 double phi7_2 = 0;
-// old angles [rad]
 double phi1_old = 0;
 double phi2_old = 0;
 double phi3_old = 0;
@@ -90,7 +87,6 @@ double phi4_old = 0;
 double phi5_old = 0;
 double phi6_old = 0;
 double phi7_old = 0;
-// angles constraints
 double phi1_max = 2.875;
 double phi2_max = 2.0;
 double phi3_max = 2.875;
@@ -100,14 +96,13 @@ double phi6_max = 2.0;
 double phi7_max = 2.96;
 float stickLength = 0;
 double armAng = 0;
-// Parameters ----------------------------------------------------------------
 // limb length [mm], total: 1330mm (with zimmer group gripper), else: 1266mm
 double d_bs = 360;
 double d_se = 420;
 double d_ew = 400;
 // double d_wf = 152;  // without gripper (x,y,z output of smartPad is without gripper)
 // double d_wf = 639;                         // with 487 gripper (x,y,z output of smartPad is without gripper)
-double d_wf = 609;
+double d_wf = 609;                         // with 457 gripper (x,y,z output of smartPad is without gripper)
 vector<double> p_shoulder = {0, 0, d_bs};  // position of shoulder
 vector<double> vec_eef = {0, 0, 0};        // vector base (x=y=z=0) to tcp tip
 vector<double> vec_wf_tmp = {0, 0, d_wf};  // vector wrist endeffector [wf]
@@ -121,6 +116,8 @@ vector<vector<float>> points;
 int pointIndex = 0;
 ros::Publisher pub;
 ros::Publisher pub2;
+ros::Publisher pubSim;
+
 int option;
 
 // Functions Prototypes
@@ -154,29 +151,86 @@ ofstream file;
 
 using namespace std;
 
+bool safetyCheck(vector<float> jointAngles)
+{
+  vector<string> color = {"red", "green", "blue", "orange", "magenta", "cyan", "black"};
+  Box* obs1 = new Box(Utils::trn(-0.5, 0, 0.17 - 0.17 / 2), 1, 1, 0.17);
+  Box* obs2 = new Box(Utils::trn(0.5, 0, -0.05), 1, 1, 0.1);
+  vector<GeometricPrimitives*> obstacles;
+
+  obstacles.push_back(obs1);
+  obstacles.push_back(obs2);
+  FreeConfigParam param;
+  param.obstacles = obstacles;
+  param.h = 0.0005;
+  IgnoreColLinkObstacle ig1;
+  ig1.linkNo = 0;
+  ig1.obsNo = 0;
+  IgnoreColLinkObstacle ig2;
+  ig2.linkNo = 0;
+  ig2.obsNo = 1;
+
+  param.distSafeObs = 0.04;
+  param.distSafeAuto = 0.02;
+  param.distSafeJoint = 0;
+
+  param.ignoreCol = {ig1, ig2};
+
+  Manipulator manip = Manipulator::createKukaIIWAWithTool();
+
+  VectorXd q(7);
+  q << jointAngles[0] * M_PI / 180, jointAngles[1] * M_PI / 180, jointAngles[2] * M_PI / 180,
+      jointAngles[3] * M_PI / 180, jointAngles[4] * M_PI / 180, jointAngles[5] * M_PI / 180,
+      jointAngles[6] * M_PI / 180;
+
+  ROS_INFO_STREAM(q);
+
+  FreeConfigResult fcr = manip.checkFreeConfig(q, param);
+
+  string warntext;
+
+  if (!fcr.isFree)
+  {
+    if (fcr.errorType == FreeConfigResult::ErrorType::autoCollision)
+    {
+      warntext = "Autocollision between link " + color[fcr.linkNumber1] + " and link " + color[fcr.linkNumber2];
+      ROS_INFO_STREAM(warntext);
+    }
+    if (fcr.errorType == FreeConfigResult::ErrorType::obstacleCollision)
+    {
+      warntext =
+          "Collision between link " + color[fcr.linkNumber1] + " and obstacle " + std::to_string(fcr.obstacleNumber);
+      ROS_INFO_STREAM(warntext);
+    }
+    if (fcr.errorType == FreeConfigResult::ErrorType::lowerJointLimit)
+    {
+      cout << "#Lower joint violation for joint: " << fcr.jointNumber << " ( value: " << q[fcr.jointNumber]
+           << ", allowed: " << manip.qMin[fcr.jointNumber] << ")" << std::endl;
+    }
+    if (fcr.errorType == FreeConfigResult::ErrorType::upperJointLimit)
+    {
+      cout << "#Upper joint violation for joint: " << fcr.jointNumber << " ( value: " << q[fcr.jointNumber]
+           << ", allowed: " << manip.qMax[fcr.jointNumber] << ")" << std::endl;
+    }
+  }
+
+  return fcr.isFree;
+}
+
 bool publishNewEEF(ros::Publisher jointAnglesPublisher, ros::Publisher xyzPublisher, float xPosition, float yPosition,
                    float zPosition, float eefPhiOrientation, float eefThetaOrientation, float armAngle)
 {
-  if (zPosition <= 42)
-  {
-    ROS_INFO("DID NOT SEND ANGLES - SAFETY");
-
-    return false;
-  }
-
   std_msgs::Float32MultiArray messageArray;
   float* jointAngles = new float[7];
 
   if (inv_kin_kuka(xPosition, yPosition, zPosition, eefPhiOrientation, eefThetaOrientation, armAngle, jointAngles))
   {
-    // safety
+    vector<float> jointAnglesFloat = {jointAngles[0], jointAngles[1], jointAngles[2], jointAngles[3],
+                                      jointAngles[4], jointAngles[5], jointAngles[6]};
 
-    if (abs(jointAngles[0]) > 165 || abs(jointAngles[1]) > 115 || abs(jointAngles[2]) > 165 ||
-        abs(jointAngles[3]) > 115 || abs(jointAngles[4]) > 165 || abs(jointAngles[5]) > 115 ||
-        abs(jointAngles[6]) > 170)
+    if (!safetyCheck(jointAnglesFloat))
     {
-      ROS_INFO("DID NOT SEND ANGLES - SAFETY");
-
+      ROS_INFO("DID NOT SEND ANGLES - COLLISION");
       return false;
     }
 
@@ -193,25 +247,6 @@ bool publishNewEEF(ros::Publisher jointAnglesPublisher, ros::Publisher xyzPublis
     quantity.a5 = jointAngles[4] * M_PI / 180;
     quantity.a6 = jointAngles[5] * M_PI / 180;
     quantity.a7 = jointAngles[6] * M_PI / 180;
-
-    Manipulator manip = Manipulator::createKukaIIWA();
-    VectorXd q(7);
-    q << jointAngles[0] * M_PI / 180, jointAngles[1] * M_PI / 180, jointAngles[2] * M_PI / 180,
-        jointAngles[3] * M_PI / 180, jointAngles[4] * M_PI / 180, jointAngles[5] * M_PI / 180,
-        jointAngles[6] * M_PI / 180;
-    testing[0] = (float)manip.fk(q).htmTool(0, 2);
-    testing[1] = (float)manip.fk(q).htmTool(1, 2);
-    testing[2] = (float)manip.fk(q).htmTool(2, 2);
-
-    file << "ANGLES FROM OLD" << endl;
-
-    file << "1: " << quantity.a1 << endl;
-    file << "2: " << quantity.a2 << endl;
-    file << "3: " << quantity.a3 << endl;
-    file << "4: " << quantity.a4 << endl;
-    file << "5: " << quantity.a5 << endl;
-    file << "6: " << quantity.a6 << endl;
-    file << "7: " << quantity.a7 << endl;
 
     jointPosition.position = quantity;
 
@@ -236,13 +271,6 @@ bool publishNewEEF(ros::Publisher jointAnglesPublisher, ros::Publisher xyzPublis
 bool publishNewEEF_trials(ros::Publisher jointAnglesPublisher, ros::Publisher xyzPublisher, float xPosition,
                           float yPosition, float zPosition, float eefPhiOrientation, float eefThetaOrientation)
 {
-  if (zPosition <= 42)
-  {
-    ROS_INFO("DID NOT SEND ANGLES - SAFETY");
-
-    return false;
-  }
-
   std_msgs::Float32MultiArray messageArray;
   float* jointAngles = new float[7];
 
@@ -256,6 +284,15 @@ bool publishNewEEF_trials(ros::Publisher jointAnglesPublisher, ros::Publisher xy
     {
       ROS_INFO("DID NOT SEND ANGLES - SAFETY");
 
+      return false;
+    }
+
+    vector<float> jointAnglesFloat = {jointAngles[0], jointAngles[1], jointAngles[2], jointAngles[3],
+                                      jointAngles[4], jointAngles[5], jointAngles[6]};
+
+    if (!safetyCheck(jointAnglesFloat))
+    {
+      ROS_INFO("DID NOT SEND ANGLES - COLLISION");
       return false;
     }
 
@@ -276,6 +313,7 @@ bool publishNewEEF_trials(ros::Publisher jointAnglesPublisher, ros::Publisher xy
     jointPosition.position = quantity;
 
     jointAnglesPublisher.publish(jointPosition);
+
     cout << "SENT ANGLES" << endl;
     file << "ANGLES FROM NEW" << endl;
 
@@ -528,8 +566,7 @@ void moved_touch(const geometry_msgs::PoseStamped msg)
       else
       {
         cout << "SUCCESS" << endl;
-        publishNewEEF_trials(pub, pub2, y_dif + shifted_origin.at(0), -x_dif + shifted_origin.at(1),
-                             z_dif + shifted_origin.at(2), phi_required, theta_required);
+        publishNewEEF_trials(pub, pub2, eef.at(0), eef.at(1), eef.at(2), phi_required, theta_required);
       }
     }
     else
@@ -689,7 +726,6 @@ bool inv_kin_kuka(double X, double Y, double Z, double eef_phi, double eef_theta
   double phi_diff_minus = abs(phi1 - phi1_old) + abs(phi2 - phi2_old) + abs(phi3 - phi3_old) + abs(phi4 - phi4_old) +
                           abs(phi5 - phi5_old) + abs(phi6 - phi6_old) + abs(phi7 - phi7_old);
   cout << "Difference: " << phi_diff_minus << endl;
-
   // print out results ---------------------------------------------------------------------------
   // cout << "Angles [deg]: " << endl;
   // cout << "(new) Arm Angle: " << armAng << endl;
