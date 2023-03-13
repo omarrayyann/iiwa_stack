@@ -157,12 +157,12 @@ using namespace std;
 bool publishNewEEF(ros::Publisher jointAnglesPublisher, ros::Publisher xyzPublisher, float xPosition, float yPosition,
                    float zPosition, float eefPhiOrientation, float eefThetaOrientation, float armAngle)
 {
-  // if (zPosition <= 42)
-  // {
-  //   ROS_INFO("DID NOT SEND ANGLES - SAFETY");
+  if (zPosition <= 42)
+  {
+    ROS_INFO("DID NOT SEND ANGLES - SAFETY");
 
-  //   return false;
-  // }
+    return false;
+  }
 
   std_msgs::Float32MultiArray messageArray;
   float* jointAngles = new float[7];
@@ -236,12 +236,12 @@ bool publishNewEEF(ros::Publisher jointAnglesPublisher, ros::Publisher xyzPublis
 bool publishNewEEF_trials(ros::Publisher jointAnglesPublisher, ros::Publisher xyzPublisher, float xPosition,
                           float yPosition, float zPosition, float eefPhiOrientation, float eefThetaOrientation)
 {
-  // if (zPosition <= 42)
-  // {
-  //   ROS_INFO("DID NOT SEND ANGLES - SAFETY");
+  if (zPosition <= 42)
+  {
+    ROS_INFO("DID NOT SEND ANGLES - SAFETY");
 
-  //   return false;
-  // }
+    return false;
+  }
 
   std_msgs::Float32MultiArray messageArray;
   float* jointAngles = new float[7];
