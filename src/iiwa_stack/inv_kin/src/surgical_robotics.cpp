@@ -87,13 +87,22 @@ double phi4_old = 0;
 double phi5_old = 0;
 double phi6_old = 0;
 double phi7_old = 0;
-double phi1_max = 2.875;
-double phi2_max = 2.0;
-double phi3_max = 2.875;
-double phi4_max = 2.0;
-double phi5_max = 2.875;
-double phi6_max = 2.0;
-double phi7_max = 2.96;
+// double phi1_max = 2.875;
+// double phi2_max = 2.0;
+// double phi3_max = 2.875;
+// double phi4_max = 2.0;
+// double phi5_max = 2.875;
+// double phi6_max = 2.0;
+// double phi7_max = 2.96;
+
+double phi1_max = 2.82;
+double phi2_max = 1.95;
+double phi3_max = 2.82;
+double phi4_max = 1.95;
+double phi5_max = 2.82;
+double phi6_max = 1.95;
+double phi7_max = 2.3;
+
 float stickLength = 0;
 double armAng = 0;
 // limb length [mm], total: 1330mm (with zimmer group gripper), else: 1266mm
@@ -147,14 +156,17 @@ float currentPhi = 0.0;
 float currentTheta = 0.0;
 float final_theta;
 float final_phi;
+
 ofstream file;
+ofstream fileFulcrum;
+ofstream fileAngles;
 
 using namespace std;
 
 bool safetyCheck(vector<float> jointAngles)
 {
   vector<string> color = {"red", "green", "blue", "orange", "magenta", "cyan", "black"};
-  Box* obs1 = new Box(Utils::trn(-0.5, 0, 0.17 - 0.17 / 2), 1, 1, 0.17);
+  Box* obs1 = new Box(Utils::trn(-0.5 + 0.12, 0, 0.17 - 0.17 / 2), 1, 1, 0.17);
   Box* obs2 = new Box(Utils::trn(0.5, 0, -0.05), 1, 1, 0.1);
   vector<GeometricPrimitives*> obstacles;
 
@@ -173,6 +185,7 @@ bool safetyCheck(vector<float> jointAngles)
   param.distSafeObs = 0.04;
   param.distSafeAuto = 0.02;
   param.distSafeJoint = 0;
+  param.considerJointLimits = false;
 
   param.ignoreCol = {ig1, ig2};
 
@@ -204,12 +217,12 @@ bool safetyCheck(vector<float> jointAngles)
     }
     if (fcr.errorType == FreeConfigResult::ErrorType::lowerJointLimit)
     {
-      cout << "#Lower joint violation for joint: " << fcr.jointNumber << " ( value: " << q[fcr.jointNumber]
+      cout << "#Lower joint violation for joint: " << fcr.jointNumber + 1 << " ( value: " << q[fcr.jointNumber]
            << ", allowed: " << manip.qMin[fcr.jointNumber] << ")" << std::endl;
     }
     if (fcr.errorType == FreeConfigResult::ErrorType::upperJointLimit)
     {
-      cout << "#Upper joint violation for joint: " << fcr.jointNumber << " ( value: " << q[fcr.jointNumber]
+      cout << "#Upper joint violation for joint: " << fcr.jointNumber + 1 << " ( value: " << q[fcr.jointNumber]
            << ", allowed: " << manip.qMax[fcr.jointNumber] << ")" << std::endl;
     }
   }
@@ -512,9 +525,9 @@ void moved_touch(const geometry_msgs::PoseStamped msg)
     }
     else if (option == 2)
     {
-      float x_dif = 1000 * (x_pos - touch_origin.at(0)) / 4;
-      float y_dif = 1000 * (y_pos - touch_origin.at(1)) / 4;
-      float z_dif = 1000 * (z_pos - touch_origin.at(2)) / 4;
+      float x_dif = 1000 * (x_pos - touch_origin.at(0)) / 15;
+      float y_dif = 1000 * (y_pos - touch_origin.at(1)) / 15;
+      float z_dif = 1000 * (z_pos - touch_origin.at(2)) / 15;
 
       vector<float> fulcrum_to_eef_vector = {y_dif, -1 * x_dif, z_dif};
 
@@ -585,10 +598,9 @@ void moved_touch(const geometry_msgs::PoseStamped msg)
 
 int main(int argc, char* argv[])
 {
-  file.open("testing.txt");
-  file << "";
-  file.close();
-  file.open("testing.txt", std::ios_base::app);
+  file.open("positions.txt");
+  fileFulcrum.open("fulcrum.txt");
+  fileAngles.open("jointAngles.txt");
 
   cout << "    ____                  _           _   ____       _           _   _" << endl;
   cout << "   / ___| _   _ _ __ __ _(_) ___ __ _| | |  _ \\ ___ | |__   ___ | |_(_) ___ ___" << endl;
@@ -767,28 +779,13 @@ bool updated_inv_kin_kuka(double X, double Y, double Z, double eef_phi, double e
   cout << "-------------------------------------" << endl;
 
   bool hasSolution = false;
-  float minDiff = 15;
+  float minDiff = 2;
+  float minValue = 20;
 
   float arm_angle_min = 0;
   bool skip_next = false;
 
   inv_kin_kuka_angle_calc(X, Y, Z, eef_phi, eef_theta, armAng);
-
-  // cout << "1: " << (abs(phi1) < phi1_max) << endl;
-  // cout << "2: " << (abs(phi2) < phi2_max) << endl;
-  // cout << "3: " << (abs(phi3) < phi3_max) << endl;
-  // cout << "4: " << (abs(phi4) < phi4_max) << endl;
-  // cout << "5: " << (abs(phi5) < phi5_max) << endl;
-  // cout << "6: " << (abs(phi6) < phi6_max) << endl;
-  // cout << "7: " << (abs(phi7) < phi7_max) << endl;
-
-  // cout << "8: " << (!isnan(phi1)) << endl;
-  // cout << "9: " << (!isnan(phi2)) << endl;
-  // cout << "10: " << (!isnan(phi3)) << endl;
-  // cout << "11: " << (!isnan(phi4)) << endl;
-  // cout << "12: " << (!isnan(phi5)) << endl;
-  // cout << "13: " << (!isnan(phi6)) << endl;
-  // cout << "14: " << (!isnan(phi7)) << endl;
 
   if (abs(phi1) < phi1_max && abs(phi2) < phi2_max && abs(phi3) < phi3_max && abs(phi4) < phi4_max &&
       abs(phi5) < phi5_max && abs(phi6) < phi6_max && abs(phi7) < phi7_max && abs(phi4) < phi4_max && !isnan(phi1_1) &&
@@ -811,6 +808,10 @@ bool updated_inv_kin_kuka(double X, double Y, double Z, double eef_phi, double e
         skip_next = true;
       }
     }
+    if (phi_diff < minValue)
+    {
+      minValue = phi_diff;
+    }
   }
 
   if (!skip_next)
@@ -818,22 +819,6 @@ bool updated_inv_kin_kuka(double X, double Y, double Z, double eef_phi, double e
     for (float test_arm_angle = armAng; test_arm_angle < armAng + 50; test_arm_angle += 0.5)
     {
       inv_kin_kuka_angle_calc(X, Y, Z, eef_phi, eef_theta, test_arm_angle);
-
-      // cout << "1: " << (abs(phi1) < phi1_max) << endl;
-      // cout << "2: " << (abs(phi2) < phi2_max) << endl;
-      // cout << "3: " << (abs(phi3) < phi3_max) << endl;
-      // cout << "4: " << (abs(phi4) < phi4_max) << endl;
-      // cout << "5: " << (abs(phi5) < phi5_max) << endl;
-      // cout << "6: " << (abs(phi6) < phi6_max) << endl;
-      // cout << "7: " << (abs(phi7) < phi7_max) << endl;
-
-      // cout << "8: " << (!isnan(phi1)) << endl;
-      // cout << "9: " << (!isnan(phi2)) << endl;
-      // cout << "10: " << (!isnan(phi3)) << endl;
-      // cout << "11: " << (!isnan(phi4)) << endl;
-      // cout << "12: " << (!isnan(phi5)) << endl;
-      // cout << "13: " << (!isnan(phi6)) << endl;
-      // cout << "14: " << (!isnan(phi7)) << endl;
 
       if (abs(phi1) < phi1_max && abs(phi2) < phi2_max && abs(phi3) < phi3_max && abs(phi4) < phi4_max &&
           abs(phi5) < phi5_max && abs(phi6) < phi6_max && abs(phi7) < phi7_max && !isnan(phi1) && !isnan(phi2) &&
@@ -855,6 +840,10 @@ bool updated_inv_kin_kuka(double X, double Y, double Z, double eef_phi, double e
             skip_next = true;
             break;
           }
+        }
+        if (phi_diff < minValue)
+        {
+          minValue = phi_diff;
         }
       }
     }
@@ -866,22 +855,6 @@ bool updated_inv_kin_kuka(double X, double Y, double Z, double eef_phi, double e
     {
       inv_kin_kuka_angle_calc(X, Y, Z, eef_phi, eef_theta, test_arm_angle);
 
-      // cout << "1: " << (abs(phi1) < phi1_max) << endl;
-      // cout << "2: " << (abs(phi2) < phi2_max) << endl;
-      // cout << "3: " << (abs(phi3) < phi3_max) << endl;
-      // cout << "4: " << (abs(phi4) < phi4_max) << endl;
-      // cout << "5: " << (abs(phi5) < phi5_max) << endl;
-      // cout << "6: " << (abs(phi6) < phi6_max) << endl;
-      // cout << "7: " << (abs(phi7) < phi7_max) << endl;
-
-      // cout << "8: " << (!isnan(phi1)) << endl;
-      // cout << "9: " << (!isnan(phi2)) << endl;
-      // cout << "10: " << (!isnan(phi3)) << endl;
-      // cout << "11: " << (!isnan(phi4)) << endl;
-      // cout << "12: " << (!isnan(phi5)) << endl;
-      // cout << "13: " << (!isnan(phi6)) << endl;
-      // cout << "14: " << (!isnan(phi7)) << endl;
-
       if (abs(phi1) < phi1_max && abs(phi2) < phi2_max && abs(phi3) < phi3_max && abs(phi4) < phi4_max &&
           abs(phi5) < phi5_max && abs(phi6) < phi6_max && abs(phi7) < phi7_max && !isnan(phi1) && !isnan(phi2) &&
           !isnan(phi3) && !isnan(phi4) && !isnan(phi5) && !isnan(phi6) && !isnan(phi7))
@@ -903,21 +876,61 @@ bool updated_inv_kin_kuka(double X, double Y, double Z, double eef_phi, double e
             break;
           }
         }
+        if (phi_diff < minValue)
+        {
+          minValue = phi_diff;
+        }
       }
     }
   }
 
-  if (!hasSolution || minDiff > 3)
+  if (!hasSolution)
+  {
+    cout << "testing all" << endl;
+    for (float test_arm_angle = 0; test_arm_angle < 360; test_arm_angle += 0.01)
+    {
+      inv_kin_kuka_angle_calc(X, Y, Z, eef_phi, eef_theta, test_arm_angle);
+
+      if (abs(phi1) < phi1_max && abs(phi2) < phi2_max && abs(phi3) < phi3_max && abs(phi4) < phi4_max &&
+          abs(phi5) < phi5_max && abs(phi6) < phi6_max && abs(phi7) < phi7_max && !isnan(phi1) && !isnan(phi2) &&
+          !isnan(phi3) && !isnan(phi4) && !isnan(phi5) && !isnan(phi6) && !isnan(phi7))
+      {
+        double phi_diff = abs(phi1 - phi1_old_min) + abs(phi2 - phi2_old_min) + abs(phi3 - phi3_old_min) +
+                          abs(phi4 - phi4_old_min) + abs(phi5 - phi5_old_min) + abs(phi6 - phi6_old_min) +
+                          abs(phi7 - phi7_old_min);
+
+        if ((minDiff > phi_diff || !started_two))
+        {
+          minDiff = phi_diff;
+
+          hasSolution = true;
+          arm_angle_min = test_arm_angle;
+          started_two = true;
+          if (minDiff < 0.02)
+          {
+            break;
+          }
+        }
+        if (phi_diff < minValue)
+        {
+          minValue = phi_diff;
+        }
+      }
+    }
+  }
+
+  if (!hasSolution || minDiff > 2)
   {
     if (!hasSolution)
     {
+      cout << "NO SOLUTION" << endl;
       file << -2 << endl;
     }
     else
     {
+      cout << "WRONG LOOPING, BEST: " << minValue << endl;
       file << -1 << endl;
     }
-    cout << "WRONG LOOPING, BEST: " << minDiff << endl;
 
     return false;
   }
