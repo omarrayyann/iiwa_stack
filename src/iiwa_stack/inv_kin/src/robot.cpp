@@ -381,7 +381,7 @@ Manipulator Manipulator::createKukaIIWA()
   double d_bs = 0.360;
   double d_se = 0.420;
   double d_ew = 0.400;
-  double d_wf = 0.609;
+  double d_wf = 0.152;  // 0.609
 
   vector<Link> linksKuka;
 
@@ -592,10 +592,9 @@ Manipulator Manipulator::createKukaIIWAWithTool()
   manip.links[5].nameObjs.push_back("c5_0");
 
   // For the seventh link
-  Box* iiwaC6_0 = new Box(Utils::trn(0.1, 0, 1.58 + 2 * dz - 0.14 / 2 + 0.02 + 0.015), 0.20, 0.1, 0.6 - 0.14 - 0.015);
-  manip.links[6].colObjs.push_back(iiwaC6_0);
-  manip.links[6].htmCols.push_back(fkres0.htmDH[6].inverse() * (*iiwaC6_0).htm);
-  manip.links[6].nameObjs.push_back("c6_0");
+  // Box* iiwaC6_0 = new Box(Utils::trn(0.1, 0, 1.58 + 2 * dz - 0.14 / 2 + 0.02 + 0.015), 0.20, 0.1, 0.6 - 0.14 -
+  // 0.015); manip.links[6].colObjs.push_back(iiwaC6_0); manip.links[6].htmCols.push_back(fkres0.htmDH[6].inverse() *
+  // (*iiwaC6_0).htm); manip.links[6].nameObjs.push_back("c6_0");
 
   // Create joint limits (in rad)
   double dq = 0.087;
