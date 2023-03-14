@@ -72,6 +72,8 @@ public:
 
     static VectorXd vectorVertStack(double v1, VectorXd v2);
 
+    static VectorXd vectorVertStack(double v1, double v2);
+
     static string printNumber(double x, int nochar=8);
 
     static string printVector(VectorXd v);
@@ -83,6 +85,10 @@ public:
     static string printMatrixPython(MatrixXd M);
 
     static double softMin(vector<double> v, double h);
+
+    static MatrixXd nullSpace(MatrixXd A);
+
+    static VectorXd hierarchicalSolve(vector<MatrixXd> A, vector<VectorXd> b, double eps);
 
     static SoftSelectMinResult softSelectMin(vector<double> v, vector<VectorXd> vVec, double h);
 

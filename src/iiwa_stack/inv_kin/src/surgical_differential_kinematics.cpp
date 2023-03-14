@@ -158,6 +158,45 @@ bool publishNewJointPosition(VectorXd q)
   return true;
 }
 
+VectorXd computeJointVelocitiesKuka3(Manipulator iiwa, VectorXd q_kuka, Vector3d vlin_des, Vector3d pf)
+{
+  FKResult fkr = iiwa.jacGeo(q_kuka);
+
+  double K = 0.5;
+
+  Vector3d xe = fkr.htmTool.block<3, 1>(0, 0);
+  Vector3d ye = fkr.htmTool.block<3, 1>(0, 1);
+  Vector3d ze = fkr.htmTool.block<3, 1>(0, 2);
+  Vector3d pe = fkr.htmTool.block<3, 1>(0, 3);
+
+  MatrixXd Jv = fkr.jacTool.block<3, 7>(0, 0);
+  MatrixXd Jw = fkr.jacTool.block<3, 7>(3, 0);
+
+  double f1 = (xe.transpose() * (pe - pf))[0];
+  double f2 = (ye.transpose() * (pe - pf))[0];
+  double f3 = (ze.transpose() * (pe - pf))[0];
+  MatrixXd jacf1 = xe.transpose() * Jv - (pe - pf).transpose() * Utils::S(xe) * Jw;
+  MatrixXd jacf2 = ye.transpose() * Jv - (pe - pf).transpose() * Utils::S(ye) * Jw;
+
+  MatrixXd A1 = Utils::matrixVertStack(jacf1, jacf2);
+  VectorXd b1 = Utils::vectorVertStack(-K * f1, -K * f2);
+
+  ROS_INFO_STREAM(" ");
+  ROS_INFO_STREAM("fx = " << f1);
+  ROS_INFO_STREAM("fy = " << f2);
+  ROS_INFO_STREAM("fz = " << f3);
+
+  MatrixXd A2 = Jv;
+  VectorXd b2 = vlin_des;
+
+  vector<MatrixXd> A = {A1, A2};
+  vector<VectorXd> b = {b1, b2};
+
+  VectorXd qdot = Utils::hierarchicalSolve(A, b, 0.01);
+
+  return qdot;
+}
+
 VectorXd computeJointVelocitiesKuka2(Manipulator iiwa, VectorXd q_kuka, Vector3d vlin_des, Vector3d vang_des)
 {
   FKResult fkr = iiwa.jacGeo(q_kuka);
@@ -310,7 +349,8 @@ int main(int argc, char* argv[])
   double dt = 0.01;
 
   Manipulator iiwa = Manipulator::createKukaIIWA();
-  Matrix4d htmStart = Utils::trn(0.45, 0, 0.65) * Utils::roty(3.14);
+  // Matrix4d htmStart = Utils::trn(0.45, 0, 0.65) * Utils::roty(3.14);
+  Matrix4d htmStart = Utils::trn(0.45, 0, 0.55) * Utils::roty(3.14);
   // Matrix4d htmStart = Utils::trn(0.4, 0, -0.4) * iiwa.fk().htmTool * Utils::roty(3.14 / 2);
   VelocityConstControlParam param;
   param.taskHtm = htmStart;
@@ -319,6 +359,9 @@ int main(int argc, char* argv[])
   param.considerAutoCollision = false;
   param.considerJointLimits = false;
   param.kori = 0.4;
+
+  Vector3d fp = htmStart.block<3, 1>(0, 3);
+  fp[2] += 0.1;
 
   // ROS_INFO_STREAM(Utils::printMatrix(htmStart));
 
@@ -377,11 +420,12 @@ int main(int argc, char* argv[])
         // ROS_INFO_STREAM("AAAA");
 
         // qdot_kuka = computeJointVelocitiesKuka(iiwa, q_kuka, vlin_des, zef_des);
-        qdot_kuka = computeJointVelocitiesKuka2(iiwa, q_kuka, vlin_des, vang_des);
+        // qdot_kuka = computeJointVelocitiesKuka2(iiwa, q_kuka, vlin_des, vang_des);
+        qdot_kuka = computeJointVelocitiesKuka3(iiwa, q_kuka, vlin_des, fp);
 
         q_kuka_next = q_kuka + dt * qdot_kuka;
 
-        ROS_INFO_STREAM("v = " << Utils::printVector(vlin_des) << ", w = " << Utils::printVector(vang_des));
+        // ROS_INFO_STREAM("v = " << Utils::printVector(vlin_des) << ", w = " << Utils::printVector(vang_des));
 
         publishNewJointPosition(q_kuka_next);
         double t = (ros::Time::now() - startingTime).toSec();
