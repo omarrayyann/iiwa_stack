@@ -34,7 +34,7 @@ public:
   double dHa;
   int jointType;
   int linkNumber;
-  vector<GeometricPrimitives *> colObjs;
+  vector<GeometricPrimitives*> colObjs;
   vector<Matrix4d> htmCols;
   vector<string> nameObjs;
   string name;
@@ -46,12 +46,10 @@ public:
 
 struct FKResult
 {
-
   vector<Matrix4d> htmDH;
   Matrix4d htmTool;
   vector<MatrixXd> jacDH;
   MatrixXd jacTool;
-
 };
 
 struct TaskResult
@@ -98,8 +96,8 @@ private:
 
 public:
   int noElements;
-  GeometricPrimitives *obj;
-  Manipulator *robot;
+  GeometricPrimitives* obj;
+  Manipulator* robot;
 
   DistanceRobotObjResult(int noJoints);
 
@@ -109,7 +107,7 @@ public:
 
   DistanceLinkObjResult getClosest();
 
-  DistanceLinkObjResult *getItem(int indLink, int indColObjLink);
+  DistanceLinkObjResult* getItem(int indLink, int indColObjLink);
 
   MatrixXd getAllJacobians();
 
@@ -126,7 +124,7 @@ private:
 
 public:
   int noElements;
-  Manipulator *robot;
+  Manipulator* robot;
 
   DistanceRobotAutoResult(int noJoints);
 
@@ -136,7 +134,7 @@ public:
 
   DistanceLinkLinkResult getClosest();
 
-  DistanceLinkLinkResult *getItem(int indLink1, int indColObjLink1, int indLink2, int indColObjLink2);
+  DistanceLinkLinkResult* getItem(int indLink1, int indColObjLink1, int indLink2, int indColObjLink2);
 
   MatrixXd getAllJacobians();
 
@@ -144,7 +142,6 @@ public:
 
   void addDistanceLinkLink(DistanceLinkLinkResult dll);
 };
-
 
 class ConstControlResult
 {
@@ -166,8 +163,8 @@ public:
 struct VelocityConstControlParam
 {
   Matrix4d taskHtm;
-  vector<GeometricPrimitives *> obstacles;
-  ConstControlResult *oldControlStruct = NULL;
+  vector<GeometricPrimitives*> obstacles;
+  ConstControlResult* oldControlStruct = NULL;
   Matrix4d customHtmWorldToBase = Matrix4d::Zero();
 
   double kpos = 0.5;
@@ -190,8 +187,8 @@ struct VelocityConstControlParam
 struct AccelerationConstControlParam
 {
   Matrix4d taskHtm;
-  vector<GeometricPrimitives *> obstacles;
-  ConstControlResult *oldControlStruct = NULL;
+  vector<GeometricPrimitives*> obstacles;
+  ConstControlResult* oldControlStruct = NULL;
   Matrix4d customHtmWorldToBase = Matrix4d::Zero();
 
   double kconv = 2.0;
@@ -226,7 +223,6 @@ struct AccelerationConstControlParam
 //     velocityConstObstacleCollision,
 //     velocityConstAutoCollision,
 
-
 //     autoCollision,
 //     obstacleCollision,
 //     none
@@ -254,7 +250,6 @@ struct AccelerationConstControlParam
 //     double minValue;
 // };
 
-
 struct IgnoreColLinkObstacle
 {
   int linkNo;
@@ -263,7 +258,7 @@ struct IgnoreColLinkObstacle
 
 struct FreeConfigParam
 {
-  vector<GeometricPrimitives *> obstacles = {};
+  vector<GeometricPrimitives*> obstacles = {};
   Matrix4d customHtmWorldToBase = Matrix4d::Zero();
 
   double distSafeObs = 0.02;
@@ -321,7 +316,13 @@ public:
 
   static Manipulator createKukaIIWA();
 
+  static Manipulator createKukaIIWA_old();
+
+  static Manipulator createKukaIIWASurgery();
+
   static Manipulator createKukaIIWAWithTool();
+
+  static Manipulator createKukaIIWAWithTool_old();
 
   static Manipulator createGeoTouch();
 
@@ -335,18 +336,20 @@ public:
 
   VectorXd ik(Matrix4d desHtm, VectorXd q0 = VectorXd(0), double pTol = 0.001, double aTol = 2, int noIterMax = 2000);
 
-  DistanceRobotObjResult computeDistToObj(GeometricPrimitives *obj, VectorXd q = VectorXd(0),
+  DistanceRobotObjResult computeDistToObj(GeometricPrimitives* obj, VectorXd q = VectorXd(0),
                                           Matrix4d customHtmWorldToBase = Matrix4d::Zero(),
-                                          DistanceRobotObjResult *oldDistStruct = NULL, double tol = 0.0005, double h = 0,
-                                          double maxDist = 10000);
+                                          DistanceRobotObjResult* oldDistStruct = NULL, double tol = 0.0005,
+                                          double h = 0, double maxDist = 10000);
 
   DistanceRobotAutoResult computeDistAuto(VectorXd q = VectorXd(0), Matrix4d customHtmWorldToBase = Matrix4d::Zero(),
-                                          DistanceRobotAutoResult *oldDistStruct = NULL, double tol = 0.0005, double h = 0,
-                                          double maxDist = 10000);
+                                          DistanceRobotAutoResult* oldDistStruct = NULL, double tol = 0.0005,
+                                          double h = 0, double maxDist = 10000);
 
-  ConstControlResult velocityConstControl(VectorXd q = VectorXd(0), VelocityConstControlParam param = VelocityConstControlParam());
+  ConstControlResult velocityConstControl(VectorXd q = VectorXd(0),
+                                          VelocityConstControlParam param = VelocityConstControlParam());
 
-  ConstControlResult accelerationConstControl(VectorXd qdot,  VectorXd q = VectorXd(0), AccelerationConstControlParam param = AccelerationConstControlParam());
+  ConstControlResult accelerationConstControl(VectorXd qdot, VectorXd q = VectorXd(0),
+                                              AccelerationConstControlParam param = AccelerationConstControlParam());
 
   FreeConfigResult checkFreeConfig(VectorXd q = VectorXd(0), FreeConfigParam param = FreeConfigParam());
 };

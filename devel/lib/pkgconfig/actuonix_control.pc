@@ -1,0 +1,8 @@
+prefix=/home/cair1/github_packages/iiwa_stack/devel
+
+Name: actuonix_control
+Description: Description of actuonix_control
+Version: 0.0.0
+Cflags: 
+Libs: -L${prefix}/lib 
+Requires: std_msgs roscpp

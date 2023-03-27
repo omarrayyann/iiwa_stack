@@ -2,6 +2,7 @@
 #include <geometry_msgs/PoseStamped.h>
 #include <geometry_msgs/Wrench.h>
 #include <geometry_msgs/WrenchStamped.h>
+#include <std_msgs/Bool.h>
 #include <urdf/model.h>
 #include <sensor_msgs/JointState.h>
 
@@ -28,20 +29,24 @@
 float prev_time;
 int calibrationStyle;
 
-struct OmniState {
-  hduVector3Dd position;  //3x1 vector of position
-  hduVector3Dd velocity;  //3x1 vector of velocity
-  hduVector3Dd inp_vel1;  //3x1 history of velocity used for filtering velocity estimate
+std_msgs::Bool gripper_action;
+ros::Publisher gripper_pub;
+
+struct OmniState
+{
+  hduVector3Dd position;  // 3x1 vector of position
+  hduVector3Dd velocity;  // 3x1 vector of velocity
+  hduVector3Dd inp_vel1;  // 3x1 history of velocity used for filtering velocity estimate
   hduVector3Dd inp_vel2;
   hduVector3Dd inp_vel3;
   hduVector3Dd out_vel1;
   hduVector3Dd out_vel2;
   hduVector3Dd out_vel3;
-  hduVector3Dd pos_hist1; //3x1 history of position used for 2nd order backward difference estimate of velocity
+  hduVector3Dd pos_hist1;  // 3x1 history of position used for 2nd order backward difference estimate of velocity
   hduVector3Dd pos_hist2;
   hduQuaternion rot;
   hduVector3Dd joints;
-  hduVector3Dd force;   //3 element double vector force[0], force[1], force[2]
+  hduVector3Dd force;  // 3 element double vector force[0], force[1], force[2]
   float thetas[7];
   int buttons[2];
   int buttons_prev[2];
@@ -51,8 +56,8 @@ struct OmniState {
   double units_ratio;
 };
 
-class PhantomROS {
-
+class PhantomROS
+{
 public:
   ros::NodeHandle n;
   ros::Publisher state_publisher;
@@ -62,38 +67,39 @@ public:
   ros::Subscriber haptic_sub;
   std::string omni_name, ref_frame, units;
 
-  OmniState *state;
+  OmniState* state;
 
-  void init(OmniState *s) {
+  void init(OmniState* s)
+  {
     ros::param::param(std::string("~omni_name"), omni_name, std::string("phantom"));
     ros::param::param(std::string("~reference_frame"), ref_frame, std::string("/map"));
     ros::param::param(std::string("~units"), units, std::string("mm"));
-    
-    //Publish button state on NAME/button
+
+    // Publish button state on NAME/button
     std::ostringstream stream1;
     stream1 << omni_name << "/button";
     std::string button_topic = std::string(stream1.str());
     button_publisher = n.advertise<omni_msgs::OmniButtonEvent>(button_topic.c_str(), 100);
-    
-    //Publish on NAME/state
+
+    // Publish on NAME/state
     std::ostringstream stream2;
     stream2 << omni_name << "/state";
     std::string state_topic_name = std::string(stream2.str());
     state_publisher = n.advertise<omni_msgs::OmniState>(state_topic_name.c_str(), 1);
-    
-    //Subscribe to NAME/force_feedback
+
+    // Subscribe to NAME/force_feedback
     std::ostringstream stream3;
     stream3 << omni_name << "/force_feedback";
     std::string force_feedback_topic = std::string(stream3.str());
     haptic_sub = n.subscribe(force_feedback_topic.c_str(), 1, &PhantomROS::force_callback, this);
-    
-    //Publish on NAME/pose
+
+    // Publish on NAME/pose
     std::ostringstream stream4;
     stream4 << omni_name << "/pose";
     std::string pose_topic_name = std::string(stream4.str());
     pose_publisher = n.advertise<geometry_msgs::PoseStamped>(pose_topic_name.c_str(), 1);
-    
-    //Publish on NAME/joint_states
+
+    // Publish on NAME/joint_states
     std::ostringstream stream5;
     stream5 << omni_name << "/joint_states";
     std::string joint_topic_name = std::string(stream5.str());
@@ -106,14 +112,14 @@ public:
     state->buttons_prev[1] = 0;
     hduVector3Dd zeros(0, 0, 0);
     state->velocity = zeros;
-    state->inp_vel1 = zeros;  //3x1 history of velocity
-    state->inp_vel2 = zeros;  //3x1 history of velocity
-    state->inp_vel3 = zeros;  //3x1 history of velocity
-    state->out_vel1 = zeros;  //3x1 history of velocity
-    state->out_vel2 = zeros;  //3x1 history of velocity
-    state->out_vel3 = zeros;  //3x1 history of velocity
-    state->pos_hist1 = zeros; //3x1 history of position
-    state->pos_hist2 = zeros; //3x1 history of position
+    state->inp_vel1 = zeros;   // 3x1 history of velocity
+    state->inp_vel2 = zeros;   // 3x1 history of velocity
+    state->inp_vel3 = zeros;   // 3x1 history of velocity
+    state->out_vel1 = zeros;   // 3x1 history of velocity
+    state->out_vel2 = zeros;   // 3x1 history of velocity
+    state->out_vel3 = zeros;   // 3x1 history of velocity
+    state->pos_hist1 = zeros;  // 3x1 history of position
+    state->pos_hist2 = zeros;  // 3x1 history of position
     state->lock = false;
     state->close_gripper = false;
     state->lock_pos = zeros;
@@ -137,7 +143,8 @@ public:
   /*******************************************************************************
    ROS node callback.
    *******************************************************************************/
-  void force_callback(const omni_msgs::OmniFeedbackConstPtr& omnifeed) {
+  void force_callback(const omni_msgs::OmniFeedbackConstPtr& omnifeed)
+  {
     ////////////////////Some people might not like this extra damping, but it
     ////////////////////helps to stabilize the overall force feedback. It isn't
     ////////////////////like we are getting direct impedance matching from the
@@ -151,7 +158,8 @@ public:
     state->lock_pos[2] = omnifeed->position.z;
   }
 
-  void publish_omni_state() {
+  void publish_omni_state()
+  {
     // Build the state msg
     omni_msgs::OmniState state_msg;
     // Locked
@@ -173,7 +181,7 @@ public:
     // TODO: Append Current to the state msg
     state_msg.header.stamp = ros::Time::now();
     state_publisher.publish(state_msg);
-    
+
     // Publish the JointState msg
     sensor_msgs::JointState joint_state;
     joint_state.header.stamp = ros::Time::now();
@@ -188,11 +196,11 @@ public:
     joint_state.name[3] = "yaw";
     joint_state.position[3] = -state->thetas[4] + M_PI;
     joint_state.name[4] = "pitch";
-    joint_state.position[4] = -state->thetas[5] - 3*M_PI/4;
+    joint_state.position[4] = -state->thetas[5] - 3 * M_PI / 4;
     joint_state.name[5] = "roll";
     joint_state.position[5] = -state->thetas[6] - M_PI;
     joint_publisher.publish(joint_state);
-    
+
     // Build the pose msg
     geometry_msgs::PoseStamped pose_msg;
     pose_msg.header = state_msg.header;
@@ -203,18 +211,25 @@ public:
     pose_msg.pose.position.z /= 1000.0;
     pose_publisher.publish(pose_msg);
 
-    if ((state->buttons[0] != state->buttons_prev[0])
-        or (state->buttons[1] != state->buttons_prev[1])) 
+    if ((state->buttons[0] != state->buttons_prev[0]) or (state->buttons[1] != state->buttons_prev[1]))
     {
-      if (state->buttons[0] == 1) {
+      if (state->buttons[0] == 1)
+      {
         state->close_gripper = !(state->close_gripper);
       }
-      if (state->buttons[1] == 1) {
+      if (state->buttons[1] == 1)
+      {
         state->lock = !(state->lock);
       }
       omni_msgs::OmniButtonEvent button_event;
       button_event.grey_button = state->buttons[0];
       button_event.white_button = state->buttons[1];
+      if (state->buttons[1] != state->buttons_prev[1])
+      {
+        ROS_INFO("Change");
+        // prev_button = omni_state->buttons[1];
+        gripper_action.data = !gripper_action.data;
+      }
       state->buttons_prev[0] = state->buttons[0];
       state->buttons_prev[1] = state->buttons[1];
       button_publisher.publish(button_event);
@@ -222,13 +237,14 @@ public:
   }
 };
 
-HDCallbackCode HDCALLBACK omni_state_callback(void *pUserData) 
+HDCallbackCode HDCALLBACK omni_state_callback(void* pUserData)
 {
-  OmniState *omni_state = static_cast<OmniState *>(pUserData);
-  if (hdCheckCalibration() == HD_CALIBRATION_NEEDS_UPDATE) {
+  OmniState* omni_state = static_cast<OmniState*>(pUserData);
+  if (hdCheckCalibration() == HD_CALIBRATION_NEEDS_UPDATE)
+  {
     ROS_DEBUG("Updating calibration...");
-      hdUpdateCalibration(calibrationStyle);
-    }
+    hdUpdateCalibration(calibrationStyle);
+  }
   hdBeginFrame(hdGetCurrentDevice());
   // Get transform and angles
   hduMatrix transform;
@@ -243,20 +259,17 @@ HDCallbackCode HDCALLBACK omni_state_callback(void *pUserData)
   // Orientation (quaternion)
   hduMatrix rotation(transform);
   rotation.getRotationMatrix(rotation);
-  hduMatrix rotation_offset( 0.0, -1.0, 0.0, 0.0,
-                             1.0,  0.0, 0.0, 0.0,
-                             0.0,  0.0, 1.0, 0.0,
-                             0.0,  0.0, 0.0, 1.0);
+  hduMatrix rotation_offset(0.0, -1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0);
   rotation_offset.getRotationMatrix(rotation_offset);
   omni_state->rot = hduQuaternion(rotation_offset * rotation);
   // Velocity estimation
   hduVector3Dd vel_buff(0, 0, 0);
-  vel_buff = (omni_state->position * 3 - 4 * omni_state->pos_hist1
-      + omni_state->pos_hist2) / 0.002;  //(units)/s, 2nd order backward dif
-  omni_state->velocity = (.2196 * (vel_buff + omni_state->inp_vel3)
-      + .6588 * (omni_state->inp_vel1 + omni_state->inp_vel2)) / 1000.0
-      - (-2.7488 * omni_state->out_vel1 + 2.5282 * omni_state->out_vel2
-          - 0.7776 * omni_state->out_vel3);  //cutoff freq of 20 Hz
+  vel_buff = (omni_state->position * 3 - 4 * omni_state->pos_hist1 + omni_state->pos_hist2) /
+             0.002;  //(units)/s, 2nd order backward dif
+  omni_state->velocity =
+      (.2196 * (vel_buff + omni_state->inp_vel3) + .6588 * (omni_state->inp_vel1 + omni_state->inp_vel2)) / 1000.0 -
+      (-2.7488 * omni_state->out_vel1 + 2.5282 * omni_state->out_vel2 - 0.7776 * omni_state->out_vel3);  // cutoff freq
+                                                                                                         // of 20 Hz
   omni_state->pos_hist2 = omni_state->pos_hist1;
   omni_state->pos_hist1 = omni_state->position;
   omni_state->inp_vel3 = omni_state->inp_vel2;
@@ -265,11 +278,11 @@ HDCallbackCode HDCALLBACK omni_state_callback(void *pUserData)
   omni_state->out_vel3 = omni_state->out_vel2;
   omni_state->out_vel2 = omni_state->out_vel1;
   omni_state->out_vel1 = omni_state->velocity;
-  
+
   //~ // Set forces if locked
   //~ if (omni_state->lock == true) {
-    //~ omni_state->force = 0.04 * omni_state->units_ratio * (omni_state->lock_pos - omni_state->position)
-        //~ - 0.001 * omni_state->velocity;
+  //~ omni_state->force = 0.04 * omni_state->units_ratio * (omni_state->lock_pos - omni_state->position)
+  //~ - 0.001 * omni_state->velocity;
   //~ }
   hduVector3Dd feedback;
   // Notice that we are changing Y <---> Z and inverting the Z-force_feedback
@@ -278,7 +291,7 @@ HDCallbackCode HDCALLBACK omni_state_callback(void *pUserData)
   feedback[2] = -omni_state->force[1];
   hdSetDoublev(HD_CURRENT_FORCE, feedback);
 
-  //Get buttons
+  // Get buttons
   int nButtons = 0;
   hdGetIntegerv(HD_CURRENT_BUTTONS, &nButtons);
   omni_state->buttons[0] = (nButtons & HD_DEVICE_BUTTON_1) ? 1 : 0;
@@ -287,56 +300,68 @@ HDCallbackCode HDCALLBACK omni_state_callback(void *pUserData)
   hdEndFrame(hdGetCurrentDevice());
 
   HDErrorInfo error;
-  if (HD_DEVICE_ERROR(error = hdGetError())) {
+  if (HD_DEVICE_ERROR(error = hdGetError()))
+  {
     hduPrintError(stderr, &error, "Error during main scheduler callback");
-    if (hduIsSchedulerError(&error))
-      return HD_CALLBACK_DONE;
+    if (hduIsSchedulerError(&error)) return HD_CALLBACK_DONE;
   }
 
-  float t[7] = { 0., omni_state->joints[0], omni_state->joints[1],
-      omni_state->joints[2] - omni_state->joints[1], gimbal_angles[0],
-      gimbal_angles[1], gimbal_angles[2] };
-  for (int i = 0; i < 7; i++)
-    omni_state->thetas[i] = t[i];
+  float t[7] = {0.,
+                omni_state->joints[0],
+                omni_state->joints[1],
+                omni_state->joints[2] - omni_state->joints[1],
+                gimbal_angles[0],
+                gimbal_angles[1],
+                gimbal_angles[2]};
+  for (int i = 0; i < 7; i++) omni_state->thetas[i] = t[i];
   return HD_CALLBACK_CONTINUE;
 }
 
 /*******************************************************************************
  Automatic Calibration of Phantom Device - No character inputs
  *******************************************************************************/
-void HHD_Auto_Calibration() {
+void HHD_Auto_Calibration()
+{
   int supportedCalibrationStyles;
   HDErrorInfo error;
 
   hdGetIntegerv(HD_CALIBRATION_STYLE, &supportedCalibrationStyles);
-  if (supportedCalibrationStyles & HD_CALIBRATION_ENCODER_RESET) {
+  if (supportedCalibrationStyles & HD_CALIBRATION_ENCODER_RESET)
+  {
     calibrationStyle = HD_CALIBRATION_ENCODER_RESET;
     ROS_INFO("HD_CALIBRATION_ENCODER_RESET..");
   }
-  if (supportedCalibrationStyles & HD_CALIBRATION_INKWELL) {
+  if (supportedCalibrationStyles & HD_CALIBRATION_INKWELL)
+  {
     calibrationStyle = HD_CALIBRATION_INKWELL;
     ROS_INFO("HD_CALIBRATION_INKWELL..");
   }
-  if (supportedCalibrationStyles & HD_CALIBRATION_AUTO) {
+  if (supportedCalibrationStyles & HD_CALIBRATION_AUTO)
+  {
     calibrationStyle = HD_CALIBRATION_AUTO;
     ROS_INFO("HD_CALIBRATION_AUTO..");
   }
-  if (calibrationStyle == HD_CALIBRATION_ENCODER_RESET) {
-    do {
+  if (calibrationStyle == HD_CALIBRATION_ENCODER_RESET)
+  {
+    do
+    {
       hdUpdateCalibration(calibrationStyle);
       ROS_INFO("Calibrating.. (put stylus in well)");
-      if (HD_DEVICE_ERROR(error = hdGetError())) {
+      if (HD_DEVICE_ERROR(error = hdGetError()))
+      {
         hduPrintError(stderr, &error, "Reset encoders reset failed.");
         break;
       }
     } while (hdCheckCalibration() != HD_CALIBRATION_OK);
     ROS_INFO("Calibration complete.");
   }
-  while(hdCheckCalibration() != HD_CALIBRATION_OK) {
+  while (hdCheckCalibration() != HD_CALIBRATION_OK)
+  {
     usleep(1e6);
-    if (hdCheckCalibration() == HD_CALIBRATION_NEEDS_MANUAL_INPUT) 
+    if (hdCheckCalibration() == HD_CALIBRATION_NEEDS_MANUAL_INPUT)
       ROS_INFO("Please place the device into the inkwell for calibration");
-    else if (hdCheckCalibration() == HD_CALIBRATION_NEEDS_UPDATE) {
+    else if (hdCheckCalibration() == HD_CALIBRATION_NEEDS_UPDATE)
+    {
       ROS_INFO("Calibration updated successfully");
       hdUpdateCalibration(calibrationStyle);
     }
@@ -345,8 +370,9 @@ void HHD_Auto_Calibration() {
   }
 }
 
-void *ros_publish(void *ptr) {
-  PhantomROS *omni_ros = (PhantomROS *) ptr;
+void* ros_publish(void* ptr)
+{
+  PhantomROS* omni_ros = (PhantomROS*)ptr;
   int publish_rate;
   ros::param::param(std::string("~publish_rate"), publish_rate, 1000);
   ROS_INFO("Publishing PHaNTOM state at [%d] Hz", publish_rate);
@@ -354,31 +380,36 @@ void *ros_publish(void *ptr) {
   ros::AsyncSpinner spinner(2);
   spinner.start();
 
-  while (ros::ok()) {
+  while (ros::ok())
+  {
+    gripper_pub.publish(gripper_action);
     omni_ros->publish_omni_state();
     loop_rate.sleep();
   }
   return NULL;
 }
 
-int main(int argc, char** argv) {
+int main(int argc, char** argv)
+{
   ////////////////////////////////////////////////////////////////
   // Init Phantom
   ////////////////////////////////////////////////////////////////
   HDErrorInfo error;
   HHD hHD;
   hHD = hdInitDevice(HD_DEFAULT_DEVICE);
-  if (HD_DEVICE_ERROR(error = hdGetError())) {
-    //hduPrintError(stderr, &error, "Failed to initialize haptic device");
-    ROS_ERROR("Failed to initialize haptic device"); //: %s", &error);
+  if (HD_DEVICE_ERROR(error = hdGetError()))
+  {
+    // hduPrintError(stderr, &error, "Failed to initialize haptic device");
+    ROS_ERROR("Failed to initialize haptic device");  //: %s", &error);
     return -1;
   }
 
   ROS_INFO("Found %s.", hdGetString(HD_DEVICE_MODEL_TYPE));
   hdEnable(HD_FORCE_OUTPUT);
   hdStartScheduler();
-  if (HD_DEVICE_ERROR(error = hdGetError())) {
-    ROS_ERROR("Failed to start the scheduler"); //, &error);
+  if (HD_DEVICE_ERROR(error = hdGetError()))
+  {
+    ROS_ERROR("Failed to start the scheduler");  //, &error);
     return -1;
   }
   HHD_Auto_Calibration();
@@ -390,15 +421,17 @@ int main(int argc, char** argv) {
   OmniState state;
   PhantomROS omni_ros;
 
+  ros::NodeHandle n;
+  gripper_pub = n.advertise<std_msgs::Bool>("/surgrob/gripper_ctrl", 1);
+  gripper_action.data = true;  // start the gripper closed
   omni_ros.init(&state);
-  hdScheduleAsynchronous(omni_state_callback, &state,
-      HD_MAX_SCHEDULER_PRIORITY);
+  hdScheduleAsynchronous(omni_state_callback, &state, HD_MAX_SCHEDULER_PRIORITY);
 
   ////////////////////////////////////////////////////////////////
   // Loop and publish
   ////////////////////////////////////////////////////////////////
   pthread_t publish_thread;
-  pthread_create(&publish_thread, NULL, ros_publish, (void*) &omni_ros);
+  pthread_create(&publish_thread, NULL, ros_publish, (void*)&omni_ros);
   pthread_join(publish_thread, NULL);
 
   ROS_INFO("Ending Session....");

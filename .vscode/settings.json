@@ -70,6 +70,7 @@
     "cinttypes": "cpp",
     "typeindex": "cpp",
     "typeinfo": "cpp",
-    "__locale": "cpp"
+    "__locale": "cpp",
+    "valarray": "cpp"
   }
 }

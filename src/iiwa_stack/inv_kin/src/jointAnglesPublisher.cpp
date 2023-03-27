@@ -147,7 +147,7 @@ double d_ew = 400;
 // double d_wf = 152;  // without gripper (x,y,z output of smartPad is without gripper)
 // double d_wf = 639;  // with// double d_wf = 639;                         // with 487 gripper (x,y,z output of
 // smartPad is without gripper)
-double d_wf = 609;  // without 48.7 gripper (x,y,z output of smartPad is without gripper)
+double d_wf = 152 + 400;  // without 48.7 gripper (x,y,z output of smartPad is without gripper)
 
 vector<double> p_shoulder = {0, 0, d_bs};  // position of shoulder
 vector<double> vec_eef = {0, 0, 0};        // vector base (x=y=z=0) to tcp tip

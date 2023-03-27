@@ -36,6 +36,7 @@
 #include "trajectory_msgs/JointTrajectory.h"
 #include "trajectory_msgs/JointTrajectoryPoint.h"
 #include "iiwa_msgs/JointPosition.h"
+#include "iiwa_msgs/JointPositionVelocity.h"
 #include "iiwa_msgs/JointQuantity.h"
 #include "std_msgs/Float32MultiArray.h"
 #include <tf/tf.h>
@@ -45,6 +46,7 @@
 #include "robot.cpp"
 #include "utils.cpp"
 #include "distance.cpp"
+#include "OmniButtonEvent.h"
 
 using namespace std;
 
@@ -70,7 +72,9 @@ ros::Time startingTime;
 double lastTimeEEfPosition;
 double lastTimeJointsPosition;
 ros::Publisher KUKAJointsPublisher;
+ros::Publisher KUKAJointsVelocityPublisher;
 bool readedJoints = false;
+bool act = true;
 
 bool safetyCheck(VectorXd q)
 {
@@ -132,9 +136,9 @@ bool safetyCheck(VectorXd q)
   return fcr.isFree;
 }
 
-bool publishNewJointPosition(VectorXd q)
+bool publishNewJointPosition(Manipulator iiwa, VectorXd q)
 {
-  if (!safetyCheck(q))
+  if (iiwa.fk(q).htmTool(2, 3) < 0.45 - 0.2)  //! safetyCheck(q)
   {
     ROS_INFO("DID NOT SEND ANGLES - COLLISION");
     return false;
@@ -158,9 +162,96 @@ bool publishNewJointPosition(VectorXd q)
   return true;
 }
 
+bool publishNewJointPositionVelocity(Manipulator iiwa, VectorXd q, VectorXd qdot)
+{
+  if (iiwa.fk(q).htmTool(2, 3) < 0.45 - 0.2)  //! safetyCheck(q)
+  {
+    ROS_INFO("DID NOT SEND ANGLES - COLLISION");
+    return false;
+  }
+
+  iiwa_msgs::JointPositionVelocity jointPositionVelocity;
+
+  jointPositionVelocity.position.a1 = q[0];
+  jointPositionVelocity.position.a2 = q[1];
+  jointPositionVelocity.position.a3 = q[2];
+  jointPositionVelocity.position.a4 = q[3];
+  jointPositionVelocity.position.a5 = q[4];
+  jointPositionVelocity.position.a6 = q[5];
+  jointPositionVelocity.position.a7 = q[6];
+
+  jointPositionVelocity.velocity.a1 = qdot[0];
+  jointPositionVelocity.velocity.a2 = qdot[1];
+  jointPositionVelocity.velocity.a3 = qdot[2];
+  jointPositionVelocity.velocity.a4 = qdot[3];
+  jointPositionVelocity.velocity.a5 = qdot[4];
+  jointPositionVelocity.velocity.a6 = qdot[5];
+  jointPositionVelocity.velocity.a7 = qdot[6];
+
+  KUKAJointsVelocityPublisher.publish(jointPositionVelocity);
+
+  return true;
+}
+
+double sqrtsgn(double x)
+{
+  return ((x > 0) ? 1 : -1) * sqrt(abs(x));
+}
+VectorXd computeJointVelocitiesKuka3b(Manipulator iiwa, VectorXd q_kuka, Vector3d vlin_des, Vector3d pf)
+{
+  FKResult fkr = iiwa.jacGeo(q_kuka);
+
+  double K = 2.0;
+
+  Vector3d xe = fkr.htmTool.block<3, 1>(0, 0);
+  Vector3d ye = fkr.htmTool.block<3, 1>(0, 1);
+  Vector3d ze = fkr.htmTool.block<3, 1>(0, 2);
+  Vector3d pe = fkr.htmTool.block<3, 1>(0, 3);
+
+  MatrixXd Jv = fkr.jacTool.block<3, 7>(0, 0);
+  MatrixXd Jw = fkr.jacTool.block<3, 7>(3, 0);
+
+  double f1 = (xe.transpose() * (pe - pf))[0];
+  double f2 = (ye.transpose() * (pe - pf))[0];
+  double f3 = (ze.transpose() * (pe - pf))[0];
+  MatrixXd jacf1 = xe.transpose() * Jv - (pe - pf).transpose() * Utils::S(xe) * Jw;
+  MatrixXd jacf2 = ye.transpose() * Jv - (pe - pf).transpose() * Utils::S(ye) * Jw;
+
+  MatrixXd A1 = Utils::matrixVertStack(jacf1, jacf2);
+  VectorXd b1 = Utils::vectorVertStack(-K * sqrtsgn(f1), -K * sqrtsgn(f2));
+
+  ROS_INFO_STREAM(" ");
+  double disfulc = round(1000 * 10 * sqrt(f1 * f1 + f2 * f2)) / 10;
+  // ROS_INFO_STREAM("fx = " << f1);
+  // ROS_INFO_STREAM("fy = " << f2);
+  ROS_INFO_STREAM("d = " << disfulc);
+  ROS_INFO_STREAM("fz = " << f3);
+
+  MatrixXd A2 = Jv;
+  VectorXd b2 = vlin_des;
+
+  vector<MatrixXd> A = {A1, A2};
+  vector<VectorXd> b = {b1, b2};
+
+  VectorXd qdot = Utils::hierarchicalSolve(A, b, 0.001);
+
+  return qdot;
+}
+
+double gammafun(double x, double xc, double k0, double kinf)
+{
+  if (x < 0)
+    return -gammafun(-x, xc, k0, kinf);
+  else
+    return min(k0 * x, k0 * xc + kinf * (x - xc));
+}
+
 VectorXd computeJointVelocitiesKuka3(Manipulator iiwa, VectorXd q_kuka, Vector3d vlin_des, Vector3d pf)
 {
   FKResult fkr = iiwa.jacGeo(q_kuka);
+
+  double dt = 0.01;
+  double dti = 0.00025;
 
   double K = 0.5;
 
@@ -182,9 +273,11 @@ VectorXd computeJointVelocitiesKuka3(Manipulator iiwa, VectorXd q_kuka, Vector3d
   VectorXd b1 = Utils::vectorVertStack(-K * f1, -K * f2);
 
   ROS_INFO_STREAM(" ");
-  ROS_INFO_STREAM("fx = " << f1);
-  ROS_INFO_STREAM("fy = " << f2);
-  ROS_INFO_STREAM("fz = " << f3);
+  // ROS_INFO_STREAM("fx = " << round(1000 * f1) << "(mm)");
+  // ROS_INFO_STREAM("fy = " << round(1000 * f2) << "(mm)");
+  double df = sqrt(f1 * f1 + f2 * f2);
+  ROS_INFO_STREAM("df = " << round(1000 * df) << " (mm)");
+  ROS_INFO_STREAM("fz = " << round(1000 * f3) << " (mm)");
 
   MatrixXd A2 = Jv;
   VectorXd b2 = vlin_des;
@@ -193,6 +286,49 @@ VectorXd computeJointVelocitiesKuka3(Manipulator iiwa, VectorXd q_kuka, Vector3d
   vector<VectorXd> b = {b1, b2};
 
   VectorXd qdot = Utils::hierarchicalSolve(A, b, 0.01);
+
+  VectorXd q = q_kuka;
+  vlin_des[0] = 2 * vlin_des[0];
+  vlin_des[1] = 1.5 * vlin_des[1];
+
+  for (int k = 0; k < round(dt / dti); k++)
+  {
+    fkr = iiwa.jacGeo(q);
+    xe = fkr.htmTool.block<3, 1>(0, 0);
+    ye = fkr.htmTool.block<3, 1>(0, 1);
+    ze = fkr.htmTool.block<3, 1>(0, 2);
+    pe = fkr.htmTool.block<3, 1>(0, 3);
+
+    Jv = fkr.jacTool.block<3, 7>(0, 0);
+    Jw = fkr.jacTool.block<3, 7>(3, 0);
+
+    f1 = (xe.transpose() * (pe - pf))[0];
+    f2 = (ye.transpose() * (pe - pf))[0];
+    f3 = (ze.transpose() * (pe - pf))[0];
+    jacf1 = xe.transpose() * Jv - (pe - pf).transpose() * Utils::S(xe) * Jw;
+    jacf2 = ye.transpose() * Jv - (pe - pf).transpose() * Utils::S(ye) * Jw;
+
+    A1 = Utils::matrixVertStack(jacf1, jacf2);
+    double f1c = -gammafun(f1, 0.01, 150, 2.0);
+    double f2c = -gammafun(f2, 0.01, 150, 2.0);
+    b1 = Utils::vectorVertStack(f1c, f2c);
+
+    A2 = Jv;
+    b2 = vlin_des;
+
+    A = {A1, A2};
+    b = {b1, b2};
+
+    // VectorXd qd = (Utils::hierarchicalSolve(A, b, 0.001));
+    VectorXd qd = Utils::solveQP(2 * (A2.transpose() * A2 + 0.01 * MatrixXd::Identity(7, 7)), -2 * A2.transpose() * b2,
+                                 MatrixXd::Zero(0, 0), VectorXd::Zero(0), A1, b1);
+
+    q += dti * qd;
+  }
+
+  qdot = 0.35 * (q - q_kuka) / (dt);
+
+  ROS_INFO_STREAM("dftg  = " << round(1000 * sqrt(f1 * f1 + f2 * f2)) << " (mm)");
 
   return qdot;
 }
@@ -325,6 +461,11 @@ void kukaCallJoints(const iiwa_msgs::JointPosition msg)
   readedJoints = true;
 }
 
+void touchCallButton(const omni_msgs::OmniButtonEvent msg)
+{
+  act = msg.grey_button == 0;
+}
+
 ofstream file;
 
 int main(int argc, char* argv[])
@@ -337,7 +478,9 @@ int main(int argc, char* argv[])
   ros::Subscriber KUKASubscriber1 = n.subscribe("/iiwa/state/JointPosition", 100, kukaCallJoints);
   ros::Subscriber touchSubscriber1 = n.subscribe("/phantom/joint_states", 100, touchCallJoints);
   ros::Subscriber touchSubscriber2 = n.subscribe("/phantom/pose", 100, touchCallEEFPosition);
-  KUKAJointsPublisher = n.advertise<iiwa_msgs::JointPosition>("/iiwa/command/JointPosition", 1000);
+  ros::Subscriber touchSubscriber23 = n.subscribe("/phantom/button", 100, touchCallButton);
+  KUKAJointsPublisher = n.advertise<iiwa_msgs::JointPosition>("/iiwa/command/JointPosition", 2);
+  KUKAJointsVelocityPublisher = n.advertise<iiwa_msgs::JointPositionVelocity>("/iiwa/command/JointPositionVelocity", 1);
 
   ros::Rate loop_rate(100);
 
@@ -345,28 +488,28 @@ int main(int argc, char* argv[])
   zef_des << 0, 0, -1;
   Vector3d zlin_des;
   VectorXd q_kuka_next;
-  VectorXd qdot_kuka;
+  VectorXd qdot_kuka = VectorXd::Zero(7);
   double dt = 0.01;
 
   Manipulator iiwa = Manipulator::createKukaIIWA();
   // Matrix4d htmStart = Utils::trn(0.45, 0, 0.65) * Utils::roty(3.14);
-  Matrix4d htmStart = Utils::trn(0.45, 0, 0.55) * Utils::roty(3.14);
+  Matrix4d htmStart = Utils::trn(0.45, 0, 0.55 - 0.2) * Utils::roty(3.14);
   // Matrix4d htmStart = Utils::trn(0.4, 0, -0.4) * iiwa.fk().htmTool * Utils::roty(3.14 / 2);
   VelocityConstControlParam param;
   param.taskHtm = htmStart;
   param.obstacles = {};
   param.considerActionLimits = false;
   param.considerAutoCollision = false;
-  param.considerJointLimits = false;
+  param.considerJointLimits = true;
   param.kori = 0.4;
 
   Vector3d fp = htmStart.block<3, 1>(0, 3);
-  fp[2] += 0.1;
+  fp[2] += 0.10;
 
   // ROS_INFO_STREAM(Utils::printMatrix(htmStart));
 
   bool reachedStartingPosition = false;  // false
-  bool reachedZero = false;
+  bool reachedZero = true;
 
   VectorXd q_kuka_sim = VectorXd::Zero(7);
 
@@ -379,6 +522,14 @@ int main(int argc, char* argv[])
   {
     if (reachedStartingPosition)
     {
+      ROS_INFO_STREAM("act " << act);
+
+      if (!act)
+      {
+        ros::spinOnce();
+        continue;
+      }
+
       if (touchEEfVelocitites.size() > 1)
       {
         // ROS_INFO_STREAM("Listening to geotouch");
@@ -421,13 +572,20 @@ int main(int argc, char* argv[])
 
         // qdot_kuka = computeJointVelocitiesKuka(iiwa, q_kuka, vlin_des, zef_des);
         // qdot_kuka = computeJointVelocitiesKuka2(iiwa, q_kuka, vlin_des, vang_des);
-        qdot_kuka = computeJointVelocitiesKuka3(iiwa, q_kuka, vlin_des, fp);
+
+        // if (!act) vlin_des = 0 * vlin_des;
+
+        VectorXd qdot_kuka_next = computeJointVelocitiesKuka3(iiwa, q_kuka, 0.8 * vlin_des, fp);
+
+        qdot_kuka = 0 * qdot_kuka + 1 * qdot_kuka_next;
 
         q_kuka_next = q_kuka + dt * qdot_kuka;
 
         // ROS_INFO_STREAM("v = " << Utils::printVector(vlin_des) << ", w = " << Utils::printVector(vang_des));
 
-        publishNewJointPosition(q_kuka_next);
+        // publishNewJointPosition(iiwa, q_kuka_next);
+        publishNewJointPositionVelocity(iiwa, q_kuka_next, 2 * (q_kuka_next - q_kuka));
+
         double t = (ros::Time::now() - startingTime).toSec();
         file << "vlin=[vlin;" << Utils::printVectorOctave(vlin_des) << "];" << std::endl;
         file << "qgt=[qgt;" << Utils::printVectorOctave(touchJoints[touchJoints.size() - 1].data) << "];" << std::endl;
@@ -446,7 +604,7 @@ int main(int argc, char* argv[])
         q_kuka_next = q_kuka + 10 * dt * qdot_kuka;
 
         ROS_INFO_STREAM("Task: " << Utils::printVector(ccr.taskResult.task));
-        publishNewJointPosition(q_kuka_next);
+        publishNewJointPosition(iiwa, q_kuka_next);
         reachedStartingPosition = ccr.taskResult.task.norm() <= 0.01;
         ROS_INFO_STREAM(reachedStartingPosition);
       }
@@ -454,7 +612,7 @@ int main(int argc, char* argv[])
       {
         if (readedJoints)
         {
-          publishNewJointPosition(VectorXd::Zero(7));
+          publishNewJointPosition(iiwa, VectorXd::Zero(7));
           reachedZero = q_kuka.norm() <= 0.02;
           ROS_INFO_STREAM("Sending to zero...");
         }

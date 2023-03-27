@@ -378,10 +378,134 @@ Manipulator Manipulator::createKukaIIWA()
   Manipulator manip(7);
 
   // Create links
+  double d_tool = 0.2;
   double d_bs = 0.360;
   double d_se = 0.420;
   double d_ew = 0.400;
-  double d_wf = 0.152;  // 0.609
+  double d_wf = 0.152 + d_tool;  // 0.609
+
+  vector<Link> linksKuka;
+
+  Link link1(1, 0, d_bs, -M_PI / 2, 0, 0, "iiwa_joint_1");
+  Link link2(2, 0, 0, M_PI / 2, 0, 0, "iiwa_joint_2");
+  Link link3(3, 0, d_se, M_PI / 2, 0, 0, "iiwa_joint_3");
+  Link link4(4, 0, 0, -M_PI / 2, 0, 0, "iiwa_joint_4");
+  Link link5(5, 0, d_ew, -M_PI / 2, 0, 0, "iiwa_joint_5");
+  Link link6(6, 0, 0, M_PI / 2, 0, 0, "iiwa_joint_6");
+  Link link7(7, 0, d_wf, 0, 0, 0, "iiwa_joint_7");
+
+  linksKuka.push_back(link1);
+  linksKuka.push_back(link2);
+  linksKuka.push_back(link3);
+  linksKuka.push_back(link4);
+  linksKuka.push_back(link5);
+  linksKuka.push_back(link6);
+  linksKuka.push_back(link7);
+
+  manip.links = linksKuka;
+
+  // Create collision objects
+  FKResult fkres0 = manip.fk();
+
+  double dz = -0.02;
+
+  // For the first link
+  Cylinder* iiwaC0_0 = new Cylinder(Utils::trn(0, 0, 0.15 + dz), 0.1, 0.12);
+  manip.links[0].colObjs.push_back(iiwaC0_0);
+  manip.links[0].htmCols.push_back(fkres0.htmDH[0].inverse() * (*iiwaC0_0).htm);
+  manip.links[0].nameObjs.push_back("c0_0");
+
+  Sphere* iiwaC0_1 = new Sphere(Utils::trn(0.01, 0, 0.33 + dz), 0.12);
+  manip.links[0].colObjs.push_back(iiwaC0_1);
+  manip.links[0].htmCols.push_back(fkres0.htmDH[0].inverse() * (*iiwaC0_1).htm);
+  manip.links[0].nameObjs.push_back("c0_1");
+
+  // For the second link
+  Sphere* iiwaC1_0 = new Sphere(Utils::trn(0, 0.03, 0.38 + dz), 0.1);
+  manip.links[1].colObjs.push_back(iiwaC1_0);
+  manip.links[1].htmCols.push_back(fkres0.htmDH[1].inverse() * (*iiwaC1_0).htm);
+  manip.links[1].nameObjs.push_back("c1_0");
+
+  Cylinder* iiwaC1_1 = new Cylinder(Utils::trn(0, 0, 0.54 + dz), 0.075, 0.125);
+  manip.links[1].colObjs.push_back(iiwaC1_1);
+  manip.links[1].htmCols.push_back(fkres0.htmDH[1].inverse() * (*iiwaC1_1).htm);
+  manip.links[1].nameObjs.push_back("c1_1");
+
+  // For the third link
+  Cylinder* iiwaC2_0 = new Cylinder(Utils::trn(0, 0, 0.66 + 2 * dz), 0.08, 0.1);
+  manip.links[2].colObjs.push_back(iiwaC2_0);
+  manip.links[2].htmCols.push_back(fkres0.htmDH[2].inverse() * (*iiwaC2_0).htm);
+  manip.links[2].nameObjs.push_back("c2_0");
+
+  Sphere* iiwaC2_1 = new Sphere(Utils::trn(0, 0.01, 0.75 + 2 * dz), 0.11);
+  manip.links[2].colObjs.push_back(iiwaC2_1);
+  manip.links[2].htmCols.push_back(fkres0.htmDH[2].inverse() * (*iiwaC2_1).htm);
+  manip.links[2].nameObjs.push_back("c2_1");
+
+  // For the fourth link
+  Sphere* iiwaC3_0 = new Sphere(Utils::trn(0, -0.035, 0.803 + 2 * dz), 0.08);
+  manip.links[3].colObjs.push_back(iiwaC3_0);
+  manip.links[3].htmCols.push_back(fkres0.htmDH[3].inverse() * (*iiwaC3_0).htm);
+  manip.links[3].nameObjs.push_back("c3_0");
+
+  Cylinder* iiwaC3_1 = new Cylinder(Utils::trn(0, 0, 0.935 + 2 * dz), 0.075, 0.125);
+  manip.links[3].colObjs.push_back(iiwaC3_1);
+  manip.links[3].htmCols.push_back(fkres0.htmDH[3].inverse() * (*iiwaC3_1).htm);
+  manip.links[3].nameObjs.push_back("c3_1");
+
+  // For the fifth link
+  Cylinder* iiwaC4_0 = new Cylinder(Utils::trn(0, 0, 1.052 + 2 * dz), 0.075, 0.11);
+  manip.links[4].colObjs.push_back(iiwaC4_0);
+  manip.links[4].htmCols.push_back(fkres0.htmDH[4].inverse() * (*iiwaC4_0).htm);
+  manip.links[4].nameObjs.push_back("c4_0");
+
+  Box* iiwaC4_1 = new Box(Utils::trn(0, -0.08, 1.15 + 2 * dz), 0.12, 0.04, 0.17);
+  manip.links[4].colObjs.push_back(iiwaC4_1);
+  manip.links[4].htmCols.push_back(fkres0.htmDH[4].inverse() * (*iiwaC4_1).htm);
+  manip.links[4].nameObjs.push_back("c4_1");
+
+  // For the sixth link
+  Cylinder* iiwaC5_0 = new Cylinder(Utils::trn(0, 0, 1.203 + 2 * dz), 0.075, 0.24);
+  manip.links[5].colObjs.push_back(iiwaC5_0);
+  manip.links[5].htmCols.push_back(fkres0.htmDH[5].inverse() * (*iiwaC5_0).htm);
+  manip.links[5].nameObjs.push_back("c5_0");
+
+  // Create joint limits (in rad)
+  double dq = 0.095;
+
+  VectorXd qMin(7);
+  qMin << -2.967055 + dq, -2.09435 + dq, -2.967055 + dq, -2.09435 + dq, -2.937055 + dq, -2.09435 + dq, -3.054325 + dq;
+
+  VectorXd qMax(7);
+  qMax << 2.967055 - dq, 2.09435 - dq, 2.967055 - dq, 2.09435 - dq, 2.937055 - dq, 2.09435 - dq, 3.054325 - dq;
+
+  manip.qMin = qMin;
+  manip.qMax = qMax;
+
+  // Create joint velocity limits (in rad/s)
+  VectorXd qDotMin(7);
+  qDotMin << -1.482, -1.482, -1.740, -1.307, -2.268, -2.355, -2.356;
+
+  VectorXd qDotMax(7);
+  qDotMax << 1.482, 1.482, 1.740, 1.307, 2.268, 2.355, 2.356;
+
+  manip.qDotMin = qDotMin;
+  manip.qDotMax = qDotMax;
+
+  return manip;
+}
+
+Manipulator Manipulator::createKukaIIWASurgery()
+{
+  // Create empty manipulator
+  Manipulator manip(7);
+
+  // Create links
+  double d_tool = 0.400;
+  double d_bs = 0.360;
+  double d_se = 0.420;
+  double d_ew = 0.400;
+  double d_wf = 0.156 + d_tool;  // 0.609
 
   vector<Link> linksKuka;
 
@@ -490,6 +614,8 @@ Manipulator Manipulator::createKukaIIWA()
 
   manip.qDotMin = qDotMin;
   manip.qDotMax = qDotMax;
+
+  // manip.htmDHnToTool = Utils::trn(0, 0, d_tool);
 
   return manip;
 }
@@ -1405,4 +1531,253 @@ FreeConfigResult Manipulator::checkFreeConfig(VectorXd q, FreeConfigParam param)
   }
 
   return fcr;
+}
+
+Manipulator Manipulator::createKukaIIWA_old()
+{
+  // Create empty manipulator
+  Manipulator manip(7);
+
+  // Create links
+  double d_bs = 0.360;
+  double d_se = 0.420;
+  double d_ew = 0.400;
+  double d_wf = 0.152 + 0.4;  // 0.609
+
+  vector<Link> linksKuka;
+
+  Link link1(1, 0, d_bs, -M_PI / 2, 0, 0, "iiwa_joint_1");
+  Link link2(2, 0, 0, M_PI / 2, 0, 0, "iiwa_joint_2");
+  Link link3(3, 0, d_se, M_PI / 2, 0, 0, "iiwa_joint_3");
+  Link link4(4, 0, 0, -M_PI / 2, 0, 0, "iiwa_joint_4");
+  Link link5(5, 0, d_ew, -M_PI / 2, 0, 0, "iiwa_joint_5");
+  Link link6(6, 0, 0, M_PI / 2, 0, 0, "iiwa_joint_6");
+  Link link7(7, 0, d_wf, 0, 0, 0, "iiwa_joint_7");
+
+  linksKuka.push_back(link1);
+  linksKuka.push_back(link2);
+  linksKuka.push_back(link3);
+  linksKuka.push_back(link4);
+  linksKuka.push_back(link5);
+  linksKuka.push_back(link6);
+  linksKuka.push_back(link7);
+
+  manip.links = linksKuka;
+
+  // Create collision objects
+  FKResult fkres0 = manip.fk();
+
+  double dz = -0.02;
+
+  // For the first link
+  Cylinder* iiwaC0_0 = new Cylinder(Utils::trn(0, 0, 0.15 + dz), 0.1, 0.12);
+  manip.links[0].colObjs.push_back(iiwaC0_0);
+  manip.links[0].htmCols.push_back(fkres0.htmDH[0].inverse() * (*iiwaC0_0).htm);
+  manip.links[0].nameObjs.push_back("c0_0");
+
+  Sphere* iiwaC0_1 = new Sphere(Utils::trn(0.01, 0, 0.33 + dz), 0.12);
+  manip.links[0].colObjs.push_back(iiwaC0_1);
+  manip.links[0].htmCols.push_back(fkres0.htmDH[0].inverse() * (*iiwaC0_1).htm);
+  manip.links[0].nameObjs.push_back("c0_1");
+
+  // For the second link
+  Sphere* iiwaC1_0 = new Sphere(Utils::trn(0, 0.03, 0.38 + dz), 0.1);
+  manip.links[1].colObjs.push_back(iiwaC1_0);
+  manip.links[1].htmCols.push_back(fkres0.htmDH[1].inverse() * (*iiwaC1_0).htm);
+  manip.links[1].nameObjs.push_back("c1_0");
+
+  Cylinder* iiwaC1_1 = new Cylinder(Utils::trn(0, 0, 0.54 + dz), 0.075, 0.125);
+  manip.links[1].colObjs.push_back(iiwaC1_1);
+  manip.links[1].htmCols.push_back(fkres0.htmDH[1].inverse() * (*iiwaC1_1).htm);
+  manip.links[1].nameObjs.push_back("c1_1");
+
+  // For the third link
+  Cylinder* iiwaC2_0 = new Cylinder(Utils::trn(0, 0, 0.66 + 2 * dz), 0.08, 0.1);
+  manip.links[2].colObjs.push_back(iiwaC2_0);
+  manip.links[2].htmCols.push_back(fkres0.htmDH[2].inverse() * (*iiwaC2_0).htm);
+  manip.links[2].nameObjs.push_back("c2_0");
+
+  Sphere* iiwaC2_1 = new Sphere(Utils::trn(0, 0.01, 0.75 + 2 * dz), 0.11);
+  manip.links[2].colObjs.push_back(iiwaC2_1);
+  manip.links[2].htmCols.push_back(fkres0.htmDH[2].inverse() * (*iiwaC2_1).htm);
+  manip.links[2].nameObjs.push_back("c2_1");
+
+  // For the fourth link
+  Sphere* iiwaC3_0 = new Sphere(Utils::trn(0, -0.035, 0.803 + 2 * dz), 0.08);
+  manip.links[3].colObjs.push_back(iiwaC3_0);
+  manip.links[3].htmCols.push_back(fkres0.htmDH[3].inverse() * (*iiwaC3_0).htm);
+  manip.links[3].nameObjs.push_back("c3_0");
+
+  Cylinder* iiwaC3_1 = new Cylinder(Utils::trn(0, 0, 0.935 + 2 * dz), 0.075, 0.125);
+  manip.links[3].colObjs.push_back(iiwaC3_1);
+  manip.links[3].htmCols.push_back(fkres0.htmDH[3].inverse() * (*iiwaC3_1).htm);
+  manip.links[3].nameObjs.push_back("c3_1");
+
+  // For the fifth link
+  Cylinder* iiwaC4_0 = new Cylinder(Utils::trn(0, 0, 1.052 + 2 * dz), 0.075, 0.11);
+  manip.links[4].colObjs.push_back(iiwaC4_0);
+  manip.links[4].htmCols.push_back(fkres0.htmDH[4].inverse() * (*iiwaC4_0).htm);
+  manip.links[4].nameObjs.push_back("c4_0");
+
+  Box* iiwaC4_1 = new Box(Utils::trn(0, -0.08, 1.15 + 2 * dz), 0.12, 0.04, 0.17);
+  manip.links[4].colObjs.push_back(iiwaC4_1);
+  manip.links[4].htmCols.push_back(fkres0.htmDH[4].inverse() * (*iiwaC4_1).htm);
+  manip.links[4].nameObjs.push_back("c4_1");
+
+  // For the sixth link
+  Cylinder* iiwaC5_0 = new Cylinder(Utils::trn(0, 0, 1.203 + 2 * dz), 0.075, 0.24);
+  manip.links[5].colObjs.push_back(iiwaC5_0);
+  manip.links[5].htmCols.push_back(fkres0.htmDH[5].inverse() * (*iiwaC5_0).htm);
+  manip.links[5].nameObjs.push_back("c5_0");
+
+  // Create joint limits (in rad)
+  double dq = 0.087;
+
+  VectorXd qMin(7);
+  qMin << -2.967055 + dq, -2.09435 + dq, -2.967055 + dq, -2.09435 + dq, -2.937055 + dq, -2.09435 + dq, -3.054325 + dq;
+
+  VectorXd qMax(7);
+  qMax << 2.967055 - dq, 2.09435 - dq, 2.967055 - dq, 2.09435 - dq, 2.937055 - dq, 2.09435 - dq, 3.054325 - dq;
+
+  manip.qMin = qMin;
+  manip.qMax = qMax;
+
+  // Create joint velocity limits (in rad/s)
+  VectorXd qDotMin(7);
+  qDotMin << -1.482, -1.482, -1.740, -1.307, -2.268, -2.355, -2.356;
+
+  VectorXd qDotMax(7);
+  qDotMax << 1.482, 1.482, 1.740, 1.307, 2.268, 2.355, 2.356;
+
+  manip.qDotMin = qDotMin;
+  manip.qDotMax = qDotMax;
+
+  return manip;
+}
+
+Manipulator Manipulator::createKukaIIWAWithTool_old()
+{
+  // Create empty manipulator
+  Manipulator manip(7);
+
+  // Create links
+  double d_bs = 0.360;
+  double d_se = 0.420;
+  double d_ew = 0.400;
+  double d_wf = 0.152 + 0.4;
+
+  vector<Link> linksKuka;
+
+  Link link1(1, 0, d_bs, -M_PI / 2, 0, 0, "iiwa_joint_1");
+  Link link2(2, 0, 0, M_PI / 2, 0, 0, "iiwa_joint_2");
+  Link link3(3, 0, d_se, M_PI / 2, 0, 0, "iiwa_joint_3");
+  Link link4(4, 0, 0, -M_PI / 2, 0, 0, "iiwa_joint_4");
+  Link link5(5, 0, d_ew, -M_PI / 2, 0, 0, "iiwa_joint_5");
+  Link link6(6, 0, 0, M_PI / 2, 0, 0, "iiwa_joint_6");
+  Link link7(7, 0, d_wf, 0, 0, 0, "iiwa_joint_7");
+
+  linksKuka.push_back(link1);
+  linksKuka.push_back(link2);
+  linksKuka.push_back(link3);
+  linksKuka.push_back(link4);
+  linksKuka.push_back(link5);
+  linksKuka.push_back(link6);
+  linksKuka.push_back(link7);
+
+  manip.links = linksKuka;
+
+  // Create collision objects
+  FKResult fkres0 = manip.fk();
+
+  double dz = -0.02;
+
+  // For the first link
+  Cylinder* iiwaC0_0 = new Cylinder(Utils::trn(0, 0, 0.15 + dz), 0.1, 0.12);
+  manip.links[0].colObjs.push_back(iiwaC0_0);
+  manip.links[0].htmCols.push_back(fkres0.htmDH[0].inverse() * (*iiwaC0_0).htm);
+  manip.links[0].nameObjs.push_back("c0_0");
+
+  Sphere* iiwaC0_1 = new Sphere(Utils::trn(0.01, 0, 0.33 + dz), 0.125);
+  manip.links[0].colObjs.push_back(iiwaC0_1);
+  manip.links[0].htmCols.push_back(fkres0.htmDH[0].inverse() * (*iiwaC0_1).htm);
+  manip.links[0].nameObjs.push_back("c0_1");
+
+  // For the second link
+  Sphere* iiwaC1_0 = new Sphere(Utils::trn(0, 0.03, 0.38 + dz), 0.11);
+  manip.links[1].colObjs.push_back(iiwaC1_0);
+  manip.links[1].htmCols.push_back(fkres0.htmDH[1].inverse() * (*iiwaC1_0).htm);
+  manip.links[1].nameObjs.push_back("c1_0");
+
+  Cylinder* iiwaC1_1 = new Cylinder(Utils::trn(0, 0, 0.54 + dz), 0.08, 0.125);
+  manip.links[1].colObjs.push_back(iiwaC1_1);
+  manip.links[1].htmCols.push_back(fkres0.htmDH[1].inverse() * (*iiwaC1_1).htm);
+  manip.links[1].nameObjs.push_back("c1_1");
+
+  // For the third link
+  Cylinder* iiwaC2_0 = new Cylinder(Utils::trn(0, 0, 0.66 + 2 * dz), 0.08, 0.1);
+  manip.links[2].colObjs.push_back(iiwaC2_0);
+  manip.links[2].htmCols.push_back(fkres0.htmDH[2].inverse() * (*iiwaC2_0).htm);
+  manip.links[2].nameObjs.push_back("c2_0");
+
+  Sphere* iiwaC2_1 = new Sphere(Utils::trn(0, 0.01, 0.75 + 2 * dz), 0.11);
+  manip.links[2].colObjs.push_back(iiwaC2_1);
+  manip.links[2].htmCols.push_back(fkres0.htmDH[2].inverse() * (*iiwaC2_1).htm);
+  manip.links[2].nameObjs.push_back("c2_1");
+
+  // For the fourth link
+  Sphere* iiwaC3_0 = new Sphere(Utils::trn(0, -0.035, 0.803 + 2 * dz), 0.09);
+  manip.links[3].colObjs.push_back(iiwaC3_0);
+  manip.links[3].htmCols.push_back(fkres0.htmDH[3].inverse() * (*iiwaC3_0).htm);
+  manip.links[3].nameObjs.push_back("c3_0");
+
+  Cylinder* iiwaC3_1 = new Cylinder(Utils::trn(0, 0, 0.935 + 2 * dz), 0.075, 0.125);
+  manip.links[3].colObjs.push_back(iiwaC3_1);
+  manip.links[3].htmCols.push_back(fkres0.htmDH[3].inverse() * (*iiwaC3_1).htm);
+  manip.links[3].nameObjs.push_back("c3_1");
+
+  // For the fifth link
+  Cylinder* iiwaC4_0 = new Cylinder(Utils::trn(0, 0, 1.052 + 2 * dz), 0.075, 0.11);
+  manip.links[4].colObjs.push_back(iiwaC4_0);
+  manip.links[4].htmCols.push_back(fkres0.htmDH[4].inverse() * (*iiwaC4_0).htm);
+  manip.links[4].nameObjs.push_back("c4_0");
+
+  Box* iiwaC4_1 = new Box(Utils::trn(0, -0.08, 1.15 + 2 * dz), 0.12, 0.04, 0.17);
+  manip.links[4].colObjs.push_back(iiwaC4_1);
+  manip.links[4].htmCols.push_back(fkres0.htmDH[4].inverse() * (*iiwaC4_1).htm);
+  manip.links[4].nameObjs.push_back("c4_1");
+
+  // For the sixth link
+  Cylinder* iiwaC5_0 = new Cylinder(Utils::trn(0, 0, 1.203 + 2 * dz), 0.075, 0.24);
+  manip.links[5].colObjs.push_back(iiwaC5_0);
+  manip.links[5].htmCols.push_back(fkres0.htmDH[5].inverse() * (*iiwaC5_0).htm);
+  manip.links[5].nameObjs.push_back("c5_0");
+
+  // For the seventh link
+  // Box* iiwaC6_0 = new Box(Utils::trn(0.1, 0, 1.58 + 2 * dz - 0.14 / 2 + 0.02 + 0.015), 0.20, 0.1, 0.6 - 0.14 -
+  // 0.015); manip.links[6].colObjs.push_back(iiwaC6_0); manip.links[6].htmCols.push_back(fkres0.htmDH[6].inverse() *
+  // (*iiwaC6_0).htm); manip.links[6].nameObjs.push_back("c6_0");
+
+  // Create joint limits (in rad)
+  double dq = 0.087;
+
+  VectorXd qMin(7);
+  qMin << -2.967055 + dq, -2.09435 + dq, -2.967055 + dq, -2.09435 + dq, -2.937055 + dq, -2.09435 + dq, -3.054325 + dq;
+
+  VectorXd qMax(7);
+  qMax << 2.967055 - dq, 2.09435 - dq, 2.967055 - dq, 2.09435 - dq, 2.937055 - dq, 2.09435 - dq, 3.054325 - dq;
+
+  manip.qMin = qMin;
+  manip.qMax = qMax;
+
+  // Create joint velocity limits (in rad/s)
+  VectorXd qDotMin(7);
+  qDotMin << -1.482, -1.482, -1.740, -1.307, -2.268, -2.355, -2.356;
+
+  VectorXd qDotMax(7);
+  qDotMax << 1.482, 1.482, 1.740, 1.307, 2.268, 2.355, 2.356;
+
+  manip.qDotMin = qDotMin;
+  manip.qDotMax = qDotMax;
+
+  return manip;
 }
