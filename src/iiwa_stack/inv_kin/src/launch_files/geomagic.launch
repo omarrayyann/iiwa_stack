@@ -1,0 +1,10 @@
+<?xml version="1.0"?>
+<launch>
+    
+   <node name="ActuonixROS" pkg="actuonix_control" type="ActuonixROS" output="screen"/>
+
+
+    <include file="/home/cair1/github_packages/iiwa_stack/src/iiwa_stack/omni_common/launch/omni_state.launch" output="screen"/>
+  
+    
+</launch>

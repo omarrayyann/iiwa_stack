@@ -1,0 +1,8 @@
+prefix=/home/cair1/github_packages/iiwa_stack/devel
+
+Name: iiwa_tools
+Description: Description of iiwa_tools
+Version: 0.0.1
+Cflags: -I/home/cair1/github_packages/iiwa_stack/devel/include -I/home/cair1/github_packages/iiwa_stack/src/iiwa_stack/iiwa_tools/include
+Libs: -L${prefix}/lib -liiwa_tools
+Requires: roscpp message_runtime std_msgs sensor_msgs geometry_msgs

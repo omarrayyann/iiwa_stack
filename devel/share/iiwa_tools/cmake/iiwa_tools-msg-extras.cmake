@@ -1,0 +1,2 @@
+set(iiwa_tools_MESSAGE_FILES "")
+set(iiwa_tools_SERVICE_FILES "/home/cair1/github_packages/iiwa_stack/src/iiwa_stack/iiwa_tools/srv/GetFK.srv;/home/cair1/github_packages/iiwa_stack/src/iiwa_stack/iiwa_tools/srv/GetIK.srv;/home/cair1/github_packages/iiwa_stack/src/iiwa_stack/iiwa_tools/srv/GetJacobian.srv;/home/cair1/github_packages/iiwa_stack/src/iiwa_stack/iiwa_tools/srv/GetJacobians.srv;/home/cair1/github_packages/iiwa_stack/src/iiwa_stack/iiwa_tools/srv/GetGravity.srv;/home/cair1/github_packages/iiwa_stack/src/iiwa_stack/iiwa_tools/srv/GetMassMatrix.srv")
