@@ -146,12 +146,12 @@ bool publishNewJointPosition(Manipulator iiwa, VectorXd q)
     ROS_INFO("DID NOT SEND ANGLES - COLLISION");
     return false;
   }
-  ROS_INFO("AAA");
 
   std_msgs::Float64MultiArray messageArray;
   iiwa_msgs::JointPosition jointPosition;
   iiwa_msgs::JointQuantity quantity;
 
+  // messageArray.data = {q[0], q[1], q[2], q[3], q[4], q[5], q[6]};
   messageArray.data = {q[0], q[1], q[2], q[3], q[4], q[5], q[6]};
 
   quantity.a1 = q[0];
@@ -253,8 +253,12 @@ double gammafun(double x, double xc, double k0, double kinf)
     return min(k0 * x, k0 * xc + kinf * (x - xc));
 }
 
+ofstream compTime;
+
 VectorXd computeJointVelocitiesKuka3(Manipulator iiwa, VectorXd q_kuka, Vector3d vlin_des, Vector3d pf)
 {
+  double algorithmStartTime = (ros::Time::now() - startingTime).toSec();
+
   FKResult fkr = iiwa.jacGeo(q_kuka);
 
   double dt = 0.01;
@@ -336,6 +340,14 @@ VectorXd computeJointVelocitiesKuka3(Manipulator iiwa, VectorXd q_kuka, Vector3d
   qdot = 0.35 * (q - q_kuka) / (dt);
 
   ROS_INFO_STREAM("dftg  = " << round(1000 * sqrt(f1 * f1 + f2 * f2)) << " (mm)");
+
+  double algorithmEndTime = (ros::Time::now() - startingTime).toSec();
+
+  double timeDifference = algorithmStartTime - lastTimeEEfPosition;
+
+  compTime << timeDifference << endl;
+
+  cout << "Computational Time: " << timeDifference << endl;
 
   return qdot;
 }
@@ -478,6 +490,7 @@ ofstream file;
 
 int main(int argc, char* argv[])
 {
+  compTime.open("CompTime.txt");
   file.open("test.m");
   ros::init(argc, argv, "surgical_differential_kinematics");
   ros::NodeHandle n;
@@ -494,7 +507,7 @@ int main(int argc, char* argv[])
 
   KUKAFRIPublisher = n.advertise<std_msgs::Float64MultiArray>("/iiwa/PositionController/command", 1);
 
-  ros::Rate loop_rate(200);
+  ros::Rate loop_rate(500);
 
   Vector3d zef_des;
   zef_des << 0, 0, -1;
@@ -506,8 +519,8 @@ int main(int argc, char* argv[])
   Manipulator iiwa = Manipulator::createKukaIIWA();
   // Matrix4d htmStart = Utils::trn(0.45, 0, 0.65) * Utils::roty(3.14);
   Matrix4d htmStart = Utils::trn(0.45, 0, 0.55 - 0.2) * Utils::roty(3.14);
-  // Matrix4d htmStart = Utils::trn(0.45 + 0.4, 0, 0.7) * Utils::roty(3.14 / 2);
-  //   Matrix4d htmStart = Utils::trn(0.4, 0, -0.4) * iiwa.fk().htmTool * Utils::roty(3.14 / 2);
+  //  Matrix4d htmStart = Utils::trn(0.45 + 0.4, 0, 0.7) * Utils::roty(3.14 / 2);
+  //    Matrix4d htmStart = Utils::trn(0.4, 0, -0.4) * iiwa.fk().htmTool * Utils::roty(3.14 / 2);
   VelocityConstControlParam param;
   param.taskHtm = htmStart;
   param.obstacles = {};
@@ -515,8 +528,8 @@ int main(int argc, char* argv[])
   param.considerAutoCollision = false;
   param.considerJointLimits = true;
   param.kori = 0.4;
-  // iiwa.qDotMin = 0.5 * iiwa.qDotMin;
-  // iiwa.qDotMax = 0.5 * iiwa.qDotMax;
+  iiwa.qDotMin = 0.5 * iiwa.qDotMin;
+  iiwa.qDotMax = 0.5 * iiwa.qDotMax;
 
   Vector3d fp = htmStart.block<3, 1>(0, 3);
   fp[2] += 0.10;
@@ -524,7 +537,7 @@ int main(int argc, char* argv[])
   // ROS_INFO_STREAM(Utils::printMatrix(htmStart));
 
   bool reachedStartingPosition = false;  // false
-  bool reachedZero = false;
+  bool reachedZero = true;
 
   VectorXd q_kuka_sim = VectorXd::Zero(7);
 
@@ -592,9 +605,9 @@ int main(int argc, char* argv[])
 
         // if (!act) vlin_des = 0 * vlin_des;
 
-        VectorXd qdot_kuka_next = computeJointVelocitiesKuka3(iiwa, q_kuka, 0.8 * vlin_des, fp);
+        VectorXd qdot_kuka_next = computeJointVelocitiesKuka3(iiwa, q_kuka, 0.2 * vlin_des, fp);
 
-        qdot_kuka = 0 * qdot_kuka + 1 * qdot_kuka_next;
+        qdot_kuka = 0 * qdot_kuka + qdot_kuka_next;
 
         q_kuka_next = q_kuka + dt * qdot_kuka;
 
@@ -604,11 +617,11 @@ int main(int argc, char* argv[])
         // publishNewJointPositionVelocity(iiwa, q_kuka_next, 2 * (q_kuka_next - q_kuka));
 
         double t = (ros::Time::now() - startingTime).toSec();
-        file << "qgt=[qgt;" << Utils::printVectorOctave(touchJoints[touchJoints.size() - 1].data) << "];" << std::endl;
-        file << "qdotgt=[qdotgt;"
-             << Utils::printVectorOctave(touchJointsVelocities[touchJointsVelocities.size() - 1].data) << "];"
-             << std::endl;
-        file << "t=[t;" << t << "];" << std::endl;
+        // file << "qgt=[qgt;" << Utils::printVectorOctave(touchJoints[touchJoints.size() - 1].data) << "];" <<
+        // std::endl; file << "qdotgt=[qdotgt;"
+        //      << Utils::printVectorOctave(touchJointsVelocities[touchJointsVelocities.size() - 1].data) << "];"
+        //      << std::endl;
+        // file << "t=[t;" << t << "];" << std::endl;
       }
     }
     else
@@ -617,7 +630,7 @@ int main(int argc, char* argv[])
       {
         ConstControlResult ccr = iiwa.velocityConstControl(q_kuka, param);
         qdot_kuka = ccr.action;
-        q_kuka_next = q_kuka + 0.5 * dt * qdot_kuka;
+        q_kuka_next = q_kuka + 1.5 * dt * qdot_kuka;
 
         ROS_INFO_STREAM("qdot: " << Utils::printVector(qdot_kuka));
         ROS_INFO_STREAM("qnext: " << Utils::printVector(q_kuka_next));
@@ -651,6 +664,6 @@ int main(int argc, char* argv[])
 
     // Get the current desired linear velocity
     ros::spinOnce();
-    loop_rate.sleep();
+    // loop_rate.sleep();
   }
 }
