@@ -79,6 +79,8 @@ ros::Publisher KUKAFRIPublisher;
 bool readedJoints = false;
 bool act = true;
 
+int g_count = 0;
+
 bool safetyCheck(VectorXd q)
 {
   vector<string> color = {"red", "green", "blue", "orange", "magenta", "cyan", "black"};
@@ -253,13 +255,26 @@ double gammafun(double x, double xc, double k0, double kinf)
 
 ofstream compTime;
 
-VectorXd computeJointVelocitiesKuka4(Manipulator iiwa, VectorXd q_kuka, Vector3d vlin_des, Vector3d pf)
+struct FulcrumPointResult
+{
+  double fx;
+  double dy;
+  double fz;
+  do MatrixXd jacfx;
+};
+
+FulcrumPointResult computeFUlcrumPoint()
+
+    VectorXd computeJointVelocitiesKuka4(Manipulator iiwa, VectorXd q, Vector3d vlin_des, Vector3d pf)
 {
   // Recording the Algorithm Starting Time
   double algorithmStartTime = (ros::Time::now() - startingTime).toSec();
 
   // KUKA Current Joints Forward Kinematics
-  FKResult fkr = iiwa.jacGeo(q_kuka);
+  FKResult fkr = iiwa.jacGeo(q);
+
+  // Algorithm Parameters
+  double K = 1;
 
   // KUKA's X-Rotation, Y-Rotation, Z-Rotation, Position - From the Forward Kinematics
   Vector3d xe = fkr.htmTool.block<3, 1>(0, 0);
@@ -288,43 +303,44 @@ VectorXd computeJointVelocitiesKuka4(Manipulator iiwa, VectorXd q_kuka, Vector3d
   // Task Function Matrix (2*7)
   MatrixXd A1 = Utils::matrixVertStack(jacf1, jacf2);
   // what are the implications of increasing K (making the equation more negative)
-  VectorXd b1 = Utils::vectorVertStack(-K * f1, -K * f2);
+  VectorXd b1 = Utils::vectorVertStack(-K * sqrtsgn(f1), -K * sqrtsgn(f2));
 
   double df = sqrt(f1 * f1 + f2 * f2);
 
-  ROS_INFO_STREAM("df = " << round(1000 * df) << " (mm)");
-  ROS_INFO_STREAM("fz = " << round(1000 * f3) << " (mm)");
+  vlin_des[0] = 2 * vlin_des[0];
+  vlin_des[1] = 1.5 * vlin_des[1];
 
-  // Jv * u?
   MatrixXd A2 = Jv;
   VectorXd b2 = vlin_des;
 
   vector<MatrixXd> A = {A1, A2};
   vector<VectorXd> b = {b1, b2};
 
-  VectorXd qdot = Utils::hierarchicalSolve(A, b, 0.01);
+  MatrixXd G = Utils::matrixVertStack(MatrixXd::Identity(7, 7), -MatrixXd::Identity(7, 7));
+  VectorXd g = -0.5 * VectorXd::Ones(14);
 
-  VectorXd q = q_kuka;
-  vlin_des[0] = 2 * vlin_des[0];
-  vlin_des[1] = 1.5 * vlin_des[1];
+  VectorXd qd = Utils::solveQP(2 * (A2.transpose() * A2 + 0.0001 * MatrixXd::Identity(7, 7)), -2 * A2.transpose() * b2,
+                               G, g, A1, b1);
 
-  // Algorithm Parameters
-  double dt = 0.01;
-  double dti = 0.01;  // 0.00025
-  double K = 0.5;
-
-  VectorXd qd = Utils::solveQP(2 * (A2.transpose() * A2 + 0.01 * MatrixXd::Identity(7, 7)), -2 * A2.transpose() * b2,
-                               MatrixXd::Zero(0, 0), VectorXd::Zero(0), A1, b1);
-
-  ROS_INFO_STREAM("dftg  = " << round(1000 * sqrt(f1 * f1 + f2 * f2)) << " (mm)");
+  // ROS_INFO_STREAM("dftg  = " << round(1000 * sqrt(f1 * f1 + f2 * f2)) << " (mm)");
 
   // Recording the Algorithm Ending Time
   double algorithmEndTime = (ros::Time::now() - startingTime).toSec();
 
+  g_count++;
+
+  if (g_count % 50 == 0)
+  {
+    ROS_INFO_STREAM("----------");
+    ROS_INFO_STREAM("df = " << round(1000 * df) << " (mm)");
+    ROS_INFO_STREAM("vd = " << Utils::printVector(vlin_des));
+    ROS_INFO_STREAM("vr = " << Utils::printVector(A2 * qd));
+  }
+
   // Calculating the Algorithm Run Time
   double timeDifference = algorithmStartTime - algorithmEndTime;
-  cout << "Computational Time: " << timeDifference << endl;
-  cout << "Max Frequency: " << 1 / timeDifference << " Hz" << endl;
+  // cout << "Computational Time: " << timeDifference << endl;
+  // cout << "Max Frequency: " << 1 / timeDifference << " Hz" << endl;
 
   return qd;
 }
@@ -337,6 +353,11 @@ VectorXd computeJointVelocitiesKuka3(Manipulator iiwa, VectorXd q_kuka, Vector3d
   // KUKA Current Joints Forward Kinematics
   FKResult fkr = iiwa.jacGeo(q_kuka);
 
+  // Algorithm Parameters
+  double dt = 0.01;
+  double dti = 0.01;  // 0.00025
+  double K = 0.5;
+
   // KUKA's X-Rotation, Y-Rotation, Z-Rotation, Position - From the Forward Kinematics
   Vector3d xe = fkr.htmTool.block<3, 1>(0, 0);
   Vector3d ye = fkr.htmTool.block<3, 1>(0, 1);
@@ -383,11 +404,6 @@ VectorXd computeJointVelocitiesKuka3(Manipulator iiwa, VectorXd q_kuka, Vector3d
   VectorXd q = q_kuka;
   vlin_des[0] = 2 * vlin_des[0];
   vlin_des[1] = 1.5 * vlin_des[1];
-
-  // Algorithm Parameters
-  double dt = 0.01;
-  double dti = 0.01;  // 0.00025
-  double K = 0.5;
 
   for (int k = 0; k < round(dt / dti); k++)
   {
@@ -560,9 +576,10 @@ void touchCallJoints(const sensor_msgs::JointState msg)
 
 void kukaCallJoints(const sensor_msgs::JointState msg)
 {
-  q_kuka = VectorXd::Zero(7);
-  q_kuka << msg.position[0], msg.position[1], msg.position[2], msg.position[3], msg.position[4], msg.position[5],
+  VectorXd q_kuka_temp = VectorXd::Zero(7);
+  q_kuka_temp << msg.position[0], msg.position[1], msg.position[2], msg.position[3], msg.position[4], msg.position[5],
       msg.position[6];
+  q_kuka = q_kuka_temp;
   readedJoints = true;
   //  ROS_INFO_STREAM("reajoint");
 }
@@ -646,8 +663,10 @@ int main(int argc, char* argv[])
         continue;
       }
 
-      if (touchEEfVelocitites.size() > 1)
+      if (1)
       {
+        /* Uncommente Below and add this inside if statement "touchEEfVelocitites.size() > 1"
+
         // Touch Geomagic EEF Linear Velocities | From Subscriber
         Vector3d vlin_des_aux = touchEEfVelocitites[touchEEfVelocitites.size() - 1].data;
         Vector3d vlin_des;
@@ -671,14 +690,17 @@ int main(int argc, char* argv[])
         Vector3d vang_des;
         vang_des << -vang_des_aux[2], -vang_des_aux[0], vang_des_aux[1];
 
+        */
+
         // Testing EEF Linear Velocities
         double tt = (ros::Time::now() - startingTime).toSec();
-        vlin_des << 0, 0.5 * sin(0.6 * tt), 0;
+        Vector3d vlin_des;
+        vlin_des << 0, -0.5 * sin(0.6 * tt), 0;
 
         // KUKA Joints Velocitites
         // iiwa: Manipulator, q_kuka: Current Joint Positions, vlin_des: Required EEF Velocities, fp: Fulcrum Point
-        VectorXd qdot_kuka_next = computeJointVelocitiesKuka3(iiwa, q_kuka, 0 * vlin_des, fp);
-        ROS_INFO_STREAM("qdot = " << Utils::printVector(qdot_kuka_next));
+        VectorXd qdot_kuka_next = computeJointVelocitiesKuka4(iiwa, q_kuka, 0.05 * vlin_des, fp);
+        // ROS_INFO_STREAM("qdot = " << Utils::printVector(qdot_kuka_next));
 
         // Filtering Joints Velocities | Smoothen the movement
         qdot_kuka = 0 * qdot_kuka + qdot_kuka_next;
