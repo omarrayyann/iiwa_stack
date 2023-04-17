@@ -151,7 +151,6 @@ bool publishNewJointPosition(Manipulator iiwa, VectorXd q)
   iiwa_msgs::JointPosition jointPosition;
   iiwa_msgs::JointQuantity quantity;
 
-  // messageArray.data = {q[0], q[1], q[2], q[3], q[4], q[5], q[6]};
   messageArray.data = {q[0], q[1], q[2], q[3], q[4], q[5], q[6]};
 
   quantity.a1 = q[0];
@@ -163,7 +162,6 @@ bool publishNewJointPosition(Manipulator iiwa, VectorXd q)
   quantity.a7 = q[6];
 
   jointPosition.position = quantity;
-  // KUKAJointsPublisher.publish(jointPosition);
   KUKAFRIPublisher.publish(messageArray);
 
   return true;
@@ -255,41 +253,49 @@ double gammafun(double x, double xc, double k0, double kinf)
 
 ofstream compTime;
 
-VectorXd computeJointVelocitiesKuka3(Manipulator iiwa, VectorXd q_kuka, Vector3d vlin_des, Vector3d pf)
+VectorXd computeJointVelocitiesKuka4(Manipulator iiwa, VectorXd q_kuka, Vector3d vlin_des, Vector3d pf)
 {
+  // Recording the Algorithm Starting Time
   double algorithmStartTime = (ros::Time::now() - startingTime).toSec();
 
+  // KUKA Current Joints Forward Kinematics
   FKResult fkr = iiwa.jacGeo(q_kuka);
 
-  double dt = 0.01;
-  double dti = 0.01;  // 0.00025
-
-  double K = 0.5;
-
+  // KUKA's X-Rotation, Y-Rotation, Z-Rotation, Position - From the Forward Kinematics
   Vector3d xe = fkr.htmTool.block<3, 1>(0, 0);
   Vector3d ye = fkr.htmTool.block<3, 1>(0, 1);
   Vector3d ze = fkr.htmTool.block<3, 1>(0, 2);
   Vector3d pe = fkr.htmTool.block<3, 1>(0, 3);
 
+  // KUKA Jacobian | Linear Velocity Component
   MatrixXd Jv = fkr.jacTool.block<3, 7>(0, 0);
+
+  // KUKA Jacobian | Angular Velocity Component
   MatrixXd Jw = fkr.jacTool.block<3, 7>(3, 0);
 
+  /* Task Function Components */
+  // Fx or F1:
   double f1 = (xe.transpose() * (pe - pf))[0];
+  // Fy or F2
   double f2 = (ye.transpose() * (pe - pf))[0];
+  // Fz or F3
   double f3 = (ze.transpose() * (pe - pf))[0];
+
+  // ??
   MatrixXd jacf1 = xe.transpose() * Jv - (pe - pf).transpose() * Utils::S(xe) * Jw;
   MatrixXd jacf2 = ye.transpose() * Jv - (pe - pf).transpose() * Utils::S(ye) * Jw;
 
+  // Task Function Matrix (2*7)
   MatrixXd A1 = Utils::matrixVertStack(jacf1, jacf2);
+  // what are the implications of increasing K (making the equation more negative)
   VectorXd b1 = Utils::vectorVertStack(-K * f1, -K * f2);
 
-  ROS_INFO_STREAM(" ");
-  // ROS_INFO_STREAM("fx = " << round(1000 * f1) << "(mm)");
-  // ROS_INFO_STREAM("fy = " << round(1000 * f2) << "(mm)");
   double df = sqrt(f1 * f1 + f2 * f2);
+
   ROS_INFO_STREAM("df = " << round(1000 * df) << " (mm)");
   ROS_INFO_STREAM("fz = " << round(1000 * f3) << " (mm)");
 
+  // Jv * u?
   MatrixXd A2 = Jv;
   VectorXd b2 = vlin_des;
 
@@ -301,6 +307,87 @@ VectorXd computeJointVelocitiesKuka3(Manipulator iiwa, VectorXd q_kuka, Vector3d
   VectorXd q = q_kuka;
   vlin_des[0] = 2 * vlin_des[0];
   vlin_des[1] = 1.5 * vlin_des[1];
+
+  // Algorithm Parameters
+  double dt = 0.01;
+  double dti = 0.01;  // 0.00025
+  double K = 0.5;
+
+  VectorXd qd = Utils::solveQP(2 * (A2.transpose() * A2 + 0.01 * MatrixXd::Identity(7, 7)), -2 * A2.transpose() * b2,
+                               MatrixXd::Zero(0, 0), VectorXd::Zero(0), A1, b1);
+
+  ROS_INFO_STREAM("dftg  = " << round(1000 * sqrt(f1 * f1 + f2 * f2)) << " (mm)");
+
+  // Recording the Algorithm Ending Time
+  double algorithmEndTime = (ros::Time::now() - startingTime).toSec();
+
+  // Calculating the Algorithm Run Time
+  double timeDifference = algorithmStartTime - algorithmEndTime;
+  cout << "Computational Time: " << timeDifference << endl;
+  cout << "Max Frequency: " << 1 / timeDifference << " Hz" << endl;
+
+  return qd;
+}
+
+VectorXd computeJointVelocitiesKuka3(Manipulator iiwa, VectorXd q_kuka, Vector3d vlin_des, Vector3d pf)
+{
+  // Recording the Algorithm Starting Time
+  double algorithmStartTime = (ros::Time::now() - startingTime).toSec();
+
+  // KUKA Current Joints Forward Kinematics
+  FKResult fkr = iiwa.jacGeo(q_kuka);
+
+  // KUKA's X-Rotation, Y-Rotation, Z-Rotation, Position - From the Forward Kinematics
+  Vector3d xe = fkr.htmTool.block<3, 1>(0, 0);
+  Vector3d ye = fkr.htmTool.block<3, 1>(0, 1);
+  Vector3d ze = fkr.htmTool.block<3, 1>(0, 2);
+  Vector3d pe = fkr.htmTool.block<3, 1>(0, 3);
+
+  // KUKA Jacobian | Linear Velocity Component
+  MatrixXd Jv = fkr.jacTool.block<3, 7>(0, 0);
+
+  // KUKA Jacobian | Angular Velocity Component
+  MatrixXd Jw = fkr.jacTool.block<3, 7>(3, 0);
+
+  /* Task Function Components */
+  // Fx or F1:
+  double f1 = (xe.transpose() * (pe - pf))[0];
+  // Fy or F2
+  double f2 = (ye.transpose() * (pe - pf))[0];
+  // Fz or F3
+  double f3 = (ze.transpose() * (pe - pf))[0];
+
+  // ??
+  MatrixXd jacf1 = xe.transpose() * Jv - (pe - pf).transpose() * Utils::S(xe) * Jw;
+  MatrixXd jacf2 = ye.transpose() * Jv - (pe - pf).transpose() * Utils::S(ye) * Jw;
+
+  // Task Function Matrix (2*7)
+  MatrixXd A1 = Utils::matrixVertStack(jacf1, jacf2);
+  // what are the implications of increasing K (making the equation more negative)
+  VectorXd b1 = Utils::vectorVertStack(-K * f1, -K * f2);
+
+  double df = sqrt(f1 * f1 + f2 * f2);
+
+  ROS_INFO_STREAM("df = " << round(1000 * df) << " (mm)");
+  ROS_INFO_STREAM("fz = " << round(1000 * f3) << " (mm)");
+
+  // Jv * u?
+  MatrixXd A2 = Jv;
+  VectorXd b2 = vlin_des;
+
+  vector<MatrixXd> A = {A1, A2};
+  vector<VectorXd> b = {b1, b2};
+
+  VectorXd qdot = Utils::hierarchicalSolve(A, b, 0.01);
+
+  VectorXd q = q_kuka;
+  vlin_des[0] = 2 * vlin_des[0];
+  vlin_des[1] = 1.5 * vlin_des[1];
+
+  // Algorithm Parameters
+  double dt = 0.01;
+  double dti = 0.01;  // 0.00025
+  double K = 0.5;
 
   for (int k = 0; k < round(dt / dti); k++)
   {
@@ -330,7 +417,6 @@ VectorXd computeJointVelocitiesKuka3(Manipulator iiwa, VectorXd q_kuka, Vector3d
     A = {A1, A2};
     b = {b1, b2};
 
-    // VectorXd qd = (Utils::hierarchicalSolve(A, b, 0.001));
     VectorXd qd = Utils::solveQP(2 * (A2.transpose() * A2 + 0.01 * MatrixXd::Identity(7, 7)), -2 * A2.transpose() * b2,
                                  MatrixXd::Zero(0, 0), VectorXd::Zero(0), A1, b1);
 
@@ -341,13 +427,13 @@ VectorXd computeJointVelocitiesKuka3(Manipulator iiwa, VectorXd q_kuka, Vector3d
 
   ROS_INFO_STREAM("dftg  = " << round(1000 * sqrt(f1 * f1 + f2 * f2)) << " (mm)");
 
+  // Recording the Algorithm Ending Time
   double algorithmEndTime = (ros::Time::now() - startingTime).toSec();
 
+  // Calculating the Algorithm Run Time
   double timeDifference = algorithmStartTime - algorithmEndTime;
-
-  compTime << timeDifference << endl;
-
   cout << "Computational Time: " << timeDifference << endl;
+  cout << "Max Frequency: " << 1 / timeDifference << " Hz" << endl;
 
   return qdot;
 }
@@ -562,68 +648,43 @@ int main(int argc, char* argv[])
 
       if (touchEEfVelocitites.size() > 1)
       {
-        // ROS_INFO_STREAM("Listening to geotouch");
-
+        // Touch Geomagic EEF Linear Velocities | From Subscriber
         Vector3d vlin_des_aux = touchEEfVelocitites[touchEEfVelocitites.size() - 1].data;
         Vector3d vlin_des;
         vlin_des << vlin_des_aux[1], -vlin_des_aux[0], vlin_des_aux[2];
         vlin_des = VELCONVERT * vlin_des;
 
-        double tt = (ros::Time::now() - startingTime).toSec();
-
-        // ROS_INFO_STREAM("A");
-
+        // Touch Geomagic Joints Positions | From Subscriber
         VectorXd q_gt = touchJoints[touchJoints.size() - 1].data;
-        // ROS_INFO_STREAM("B");
+
+        // Touch Geomagic Joints Velocities | From Subscriber
         VectorXd qdot_gt = touchJointsVelocities[touchJointsVelocities.size() - 1].data;
-        // ROS_INFO_STREAM("C");
+
+        // Touch Geomagic Jacobian Matrix
         MatrixXd jacg = Manipulator::createGeoTouch().jacGeo(q_gt).jacTool;
-        // ROS_INFO_STREAM("D");
-        // ROS_INFO_STREAM(Utils::printMatrix(jacg));
+
+        // Touch Geomagic Jacobian | Angular Velocities Component
         MatrixXd Jw_gt = jacg.block<3, 5>(3, 0);
 
+        // Touch Geomagic EEF Angular Velocities | Jacobian(Angular Velocities Component) * Joint Velocities)
         Vector3d vang_des_aux = Jw_gt * qdot_gt;
-
-        // cout << Utils::printMatrix(Utils::rotz(-M_PI / 2) * Utils::rotx(M_PI / 2) *
-        //                            Manipulator::createGeoTouch().jacGeo(q_gt).htmTool)
-        //      << std::endl << std::endl;
-
-        // cout << Utils::printMatrix(Manipulator::createGeoTouch().jacGeo(q_gt).htmTool) << std::endl << std::endl;
-        // cout << Utils::printVector(vang_des_aux) << std::endl;
-
         Vector3d vang_des;
         vang_des << -vang_des_aux[2], -vang_des_aux[0], vang_des_aux[1];
 
-        // ROS_INFO_STREAM("vang_des = " << Utils::printVector(vang_des));
-
-        // ROS_INFO_STREAM("AAAA");
-
-        // qdot_kuka = computeJointVelocitiesKuka(iiwa, q_kuka, vlin_des, zef_des);
-        // qdot_kuka = computeJointVelocitiesKuka2(iiwa, q_kuka, vlin_des, vang_des);
-
-        // if (!act) vlin_des = 0 * vlin_des;
-
+        // Testing EEF Linear Velocities
+        double tt = (ros::Time::now() - startingTime).toSec();
         vlin_des << 0, 0.5 * sin(0.6 * tt), 0;
 
+        // KUKA Joints Velocitites
+        // iiwa: Manipulator, q_kuka: Current Joint Positions, vlin_des: Required EEF Velocities, fp: Fulcrum Point
         VectorXd qdot_kuka_next = computeJointVelocitiesKuka3(iiwa, q_kuka, 0 * vlin_des, fp);
-
         ROS_INFO_STREAM("qdot = " << Utils::printVector(qdot_kuka_next));
 
+        // Filtering Joints Velocities | Smoothen the movement
         qdot_kuka = 0 * qdot_kuka + qdot_kuka_next;
-
         q_kuka_next = q_kuka + dt * qdot_kuka;
 
-        // ROS_INFO_STREAM("v = " << Utils::printVector(vlin_des) << ", w = " << Utils::printVector(vang_des));
-
         publishNewJointPosition(iiwa, q_kuka_next);
-        // publishNewJointPositionVelocity(iiwa, q_kuka_next, 2 * (q_kuka_next - q_kuka));
-
-        // double t = (ros::Time::now() - startingTime).toSec();
-        // file << "qgt=[qgt;" << Utils::printVectorOctave(touchJoints[touchJoints.size() - 1].data) << "];" <<
-        // std::endl; file << "qdotgt=[qdotgt;"
-        //      << Utils::printVectorOctave(touchJointsVelocities[touchJointsVelocities.size() - 1].data) << "];"
-        //      << std::endl;
-        // file << "t=[t;" << t << "];" << std::endl;
       }
     }
     else
