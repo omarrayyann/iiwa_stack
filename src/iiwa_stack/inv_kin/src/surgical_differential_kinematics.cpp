@@ -141,7 +141,7 @@ bool safetyCheck(VectorXd q)
 
 bool publishNewJointPosition(Manipulator iiwa, VectorXd q)
 {
-  if (iiwa.fk(q).htmTool(2, 3) < 0.45 - 0.2)  //! safetyCheck(q)
+  if (iiwa.fk(q).htmTool(2, 3) < 0.45 - 0.4)  //! safetyCheck(q)
   {
     ROS_INFO("DID NOT SEND ANGLES - COLLISION");
     return false;
@@ -262,7 +262,7 @@ VectorXd computeJointVelocitiesKuka3(Manipulator iiwa, VectorXd q_kuka, Vector3d
   FKResult fkr = iiwa.jacGeo(q_kuka);
 
   double dt = 0.01;
-  double dti = 0.00025;
+  double dti = 0.01;  // 0.00025
 
   double K = 0.5;
 
@@ -343,7 +343,7 @@ VectorXd computeJointVelocitiesKuka3(Manipulator iiwa, VectorXd q_kuka, Vector3d
 
   double algorithmEndTime = (ros::Time::now() - startingTime).toSec();
 
-  double timeDifference = algorithmStartTime - lastTimeEEfPosition;
+  double timeDifference = algorithmStartTime - algorithmEndTime;
 
   compTime << timeDifference << endl;
 
@@ -478,7 +478,7 @@ void kukaCallJoints(const sensor_msgs::JointState msg)
   q_kuka << msg.position[0], msg.position[1], msg.position[2], msg.position[3], msg.position[4], msg.position[5],
       msg.position[6];
   readedJoints = true;
-  ROS_INFO_STREAM("reajoint");
+  //  ROS_INFO_STREAM("reajoint");
 }
 
 void touchCallButton(const omni_msgs::OmniButtonEvent msg)
@@ -518,7 +518,7 @@ int main(int argc, char* argv[])
 
   Manipulator iiwa = Manipulator::createKukaIIWA();
   // Matrix4d htmStart = Utils::trn(0.45, 0, 0.65) * Utils::roty(3.14);
-  Matrix4d htmStart = Utils::trn(0.45, 0, 0.55 - 0.2) * Utils::roty(3.14);
+  Matrix4d htmStart = Utils::trn(0.45, 0, 0.55 - 0.4) * Utils::roty(3.14);
   //  Matrix4d htmStart = Utils::trn(0.45 + 0.4, 0, 0.7) * Utils::roty(3.14 / 2);
   //    Matrix4d htmStart = Utils::trn(0.4, 0, -0.4) * iiwa.fk().htmTool * Utils::roty(3.14 / 2);
   VelocityConstControlParam param;
@@ -548,11 +548,11 @@ int main(int argc, char* argv[])
 
   while (ros::ok())
   {
-    ROS_INFO_STREAM("runn");
-
+    // ROS_INFO_STREAM("runn");
+    //  reachedStartingPosition = true;
     if (reachedStartingPosition)
     {
-      ROS_INFO_STREAM("act " << act);
+      // ROS_INFO_STREAM("act " << act);
 
       if (!act)
       {
@@ -569,9 +569,7 @@ int main(int argc, char* argv[])
         vlin_des << vlin_des_aux[1], -vlin_des_aux[0], vlin_des_aux[2];
         vlin_des = VELCONVERT * vlin_des;
 
-        // vlin_des << 0, 0.3, 0;
-
-        // ROS_INFO_STREAM("v (cm/s)" << Utils::printVector(vlin_des * 100));
+        double tt = (ros::Time::now() - startingTime).toSec();
 
         // ROS_INFO_STREAM("A");
 
@@ -605,7 +603,11 @@ int main(int argc, char* argv[])
 
         // if (!act) vlin_des = 0 * vlin_des;
 
-        VectorXd qdot_kuka_next = computeJointVelocitiesKuka3(iiwa, q_kuka, 0.2 * vlin_des, fp);
+        vlin_des << 0, 0.5 * sin(0.6 * tt), 0;
+
+        VectorXd qdot_kuka_next = computeJointVelocitiesKuka3(iiwa, q_kuka, 0 * vlin_des, fp);
+
+        ROS_INFO_STREAM("qdot = " << Utils::printVector(qdot_kuka_next));
 
         qdot_kuka = 0 * qdot_kuka + qdot_kuka_next;
 
@@ -616,7 +618,7 @@ int main(int argc, char* argv[])
         publishNewJointPosition(iiwa, q_kuka_next);
         // publishNewJointPositionVelocity(iiwa, q_kuka_next, 2 * (q_kuka_next - q_kuka));
 
-        double t = (ros::Time::now() - startingTime).toSec();
+        // double t = (ros::Time::now() - startingTime).toSec();
         // file << "qgt=[qgt;" << Utils::printVectorOctave(touchJoints[touchJoints.size() - 1].data) << "];" <<
         // std::endl; file << "qdotgt=[qdotgt;"
         //      << Utils::printVectorOctave(touchJointsVelocities[touchJointsVelocities.size() - 1].data) << "];"
@@ -664,6 +666,6 @@ int main(int argc, char* argv[])
 
     // Get the current desired linear velocity
     ros::spinOnce();
-    // loop_rate.sleep();
+    loop_rate.sleep();
   }
 }
