@@ -52,6 +52,16 @@ struct FKResult
   MatrixXd jacTool;
 };
 
+struct FulcrumPointResult
+{
+  double fx;
+  double fy;
+  double fz;
+  double dy;
+  double MatrixXd jacfx;
+  double MatrixXd jacfy;
+};
+
 struct TaskResult
 {
   VectorXd task;
@@ -352,4 +362,6 @@ public:
                                               AccelerationConstControlParam param = AccelerationConstControlParam());
 
   FreeConfigResult checkFreeConfig(VectorXd q = VectorXd(0), FreeConfigParam param = FreeConfigParam());
+
+  FulcrumPointResult computeFulcrumPoint(Manipulator iiwa, double K);
 };

@@ -785,6 +785,42 @@ FKResult Manipulator::fk(VectorXd q, Matrix4d customHtmWorldToBase)
   return fkres;
 }
 
+FulcrumPointResult Manipulator::computeFulcrumPoint(Manipulator iiwa, double K)
+{
+  FulcrumPointResult fulcrumPointResult;
+
+  // KUKA Current Joints Forward Kinematics
+  FKResult fkr = jacGeo(q);
+
+  // Algorithm Parameters
+  double K = 1;
+
+  // KUKA's X-Rotation, Y-Rotation, Z-Rotation, Position - From the Forward Kinematics
+  Vector3d xe = fkr.htmTool.block<3, 1>(0, 0);
+  Vector3d ye = fkr.htmTool.block<3, 1>(0, 1);
+  Vector3d ze = fkr.htmTool.block<3, 1>(0, 2);
+  Vector3d pe = fkr.htmTool.block<3, 1>(0, 3);
+
+  // KUKA Jacobian | Linear Velocity Component
+  MatrixXd Jv = fkr.jacTool.block<3, 7>(0, 0);
+
+  // KUKA Jacobian | Angular Velocity Component
+  MatrixXd Jw = fkr.jacTool.block<3, 7>(3, 0);
+
+  /* Task Function Components */
+  // Fx or F1:
+  fulcrumPointResult.fx = (xe.transpose() * (pe - pf))[0];
+  // Fy or F2
+  fulcrumPointResult.fy = (ye.transpose() * (pe - pf))[0];
+  // Fz or F3
+  fulcrumPointResult.fz = (ze.transpose() * (pe - pf))[0];
+  // Computing the distacne to target
+  fulcrumPointResult.df = sqrt(fx * fx + fy * fy);
+
+  fulcrumPointResult.jacfx = xe.transpose() * Jv - (pe - pf).transpose() * Utils::S(xe) * Jw;
+  fulcrumPointResult.jacfy = ye.transpose() * Jv - (pe - pf).transpose() * Utils::S(ye) * Jw;
+}
+
 FKResult Manipulator::jacGeo(VectorXd q, Matrix4d customHtmWorldToBase)
 {
   // Compute the forward kinematics

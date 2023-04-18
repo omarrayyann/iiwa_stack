@@ -255,57 +255,14 @@ double gammafun(double x, double xc, double k0, double kinf)
 
 ofstream compTime;
 
-struct FulcrumPointResult
+VectorXd computeJointVelocitiesKuka4(Manipulator iiwa, VectorXd q, Vector3d vlin_des, Vector3d pf)
 {
-  double fx;
-  double dy;
-  double fz;
-  do MatrixXd jacfx;
-};
-
-FulcrumPointResult computeFUlcrumPoint()
-
-    VectorXd computeJointVelocitiesKuka4(Manipulator iiwa, VectorXd q, Vector3d vlin_des, Vector3d pf)
-{
-  // Recording the Algorithm Starting Time
   double algorithmStartTime = (ros::Time::now() - startingTime).toSec();
 
-  // KUKA Current Joints Forward Kinematics
-  FKResult fkr = iiwa.jacGeo(q);
+  FulcrumPointResult fpResult = iiwa.computeFulcrumPoint(K, q_kuka);
 
-  // Algorithm Parameters
-  double K = 1;
-
-  // KUKA's X-Rotation, Y-Rotation, Z-Rotation, Position - From the Forward Kinematics
-  Vector3d xe = fkr.htmTool.block<3, 1>(0, 0);
-  Vector3d ye = fkr.htmTool.block<3, 1>(0, 1);
-  Vector3d ze = fkr.htmTool.block<3, 1>(0, 2);
-  Vector3d pe = fkr.htmTool.block<3, 1>(0, 3);
-
-  // KUKA Jacobian | Linear Velocity Component
-  MatrixXd Jv = fkr.jacTool.block<3, 7>(0, 0);
-
-  // KUKA Jacobian | Angular Velocity Component
-  MatrixXd Jw = fkr.jacTool.block<3, 7>(3, 0);
-
-  /* Task Function Components */
-  // Fx or F1:
-  double f1 = (xe.transpose() * (pe - pf))[0];
-  // Fy or F2
-  double f2 = (ye.transpose() * (pe - pf))[0];
-  // Fz or F3
-  double f3 = (ze.transpose() * (pe - pf))[0];
-
-  // ??
-  MatrixXd jacf1 = xe.transpose() * Jv - (pe - pf).transpose() * Utils::S(xe) * Jw;
-  MatrixXd jacf2 = ye.transpose() * Jv - (pe - pf).transpose() * Utils::S(ye) * Jw;
-
-  // Task Function Matrix (2*7)
-  MatrixXd A1 = Utils::matrixVertStack(jacf1, jacf2);
-  // what are the implications of increasing K (making the equation more negative)
-  VectorXd b1 = Utils::vectorVertStack(-K * sqrtsgn(f1), -K * sqrtsgn(f2));
-
-  double df = sqrt(f1 * f1 + f2 * f2);
+  MatrixXd A1 = Utils::matrixVertStack(fpResult.jacfx, fpResult.jacfy);
+  VectorXd b1 = Utils::vectorVertStack(-K * fpResult.fx, -K * fpResult.fy);
 
   vlin_des[0] = 2 * vlin_des[0];
   vlin_des[1] = 1.5 * vlin_des[1];
@@ -322,9 +279,6 @@ FulcrumPointResult computeFUlcrumPoint()
   VectorXd qd = Utils::solveQP(2 * (A2.transpose() * A2 + 0.0001 * MatrixXd::Identity(7, 7)), -2 * A2.transpose() * b2,
                                G, g, A1, b1);
 
-  // ROS_INFO_STREAM("dftg  = " << round(1000 * sqrt(f1 * f1 + f2 * f2)) << " (mm)");
-
-  // Recording the Algorithm Ending Time
   double algorithmEndTime = (ros::Time::now() - startingTime).toSec();
 
   g_count++;
@@ -332,14 +286,14 @@ FulcrumPointResult computeFUlcrumPoint()
   if (g_count % 50 == 0)
   {
     ROS_INFO_STREAM("----------");
-    ROS_INFO_STREAM("df = " << round(1000 * df) << " (mm)");
+    ROS_INFO_STREAM("df = " << round(1000 * fpResult.df) << " (mm)");
     ROS_INFO_STREAM("vd = " << Utils::printVector(vlin_des));
     ROS_INFO_STREAM("vr = " << Utils::printVector(A2 * qd));
   }
 
   // Calculating the Algorithm Run Time
   double timeDifference = algorithmStartTime - algorithmEndTime;
-  // cout << "Computational Time: " << timeDifference << endl;
+  // cout << "Computational Time: " << timeDifference * 1000 << " ms" << endl;
   // cout << "Max Frequency: " << 1 / timeDifference << " Hz" << endl;
 
   return qd;
@@ -347,52 +301,16 @@ FulcrumPointResult computeFUlcrumPoint()
 
 VectorXd computeJointVelocitiesKuka3(Manipulator iiwa, VectorXd q_kuka, Vector3d vlin_des, Vector3d pf)
 {
-  // Recording the Algorithm Starting Time
   double algorithmStartTime = (ros::Time::now() - startingTime).toSec();
 
-  // KUKA Current Joints Forward Kinematics
-  FKResult fkr = iiwa.jacGeo(q_kuka);
+  FulcrumPointResult fpResult = iiwa.computeFulcrumPoint(K, q_kuka);
 
-  // Algorithm Parameters
-  double dt = 0.01;
-  double dti = 0.01;  // 0.00025
-  double K = 0.5;
+  MatrixXd A1 = Utils::matrixVertStack(fpResult.jacfx, fpResult.jacfy);
+  VectorXd b1 = Utils::vectorVertStack(-K * fpResult.fx, -K * fpResult.fy);
 
-  // KUKA's X-Rotation, Y-Rotation, Z-Rotation, Position - From the Forward Kinematics
-  Vector3d xe = fkr.htmTool.block<3, 1>(0, 0);
-  Vector3d ye = fkr.htmTool.block<3, 1>(0, 1);
-  Vector3d ze = fkr.htmTool.block<3, 1>(0, 2);
-  Vector3d pe = fkr.htmTool.block<3, 1>(0, 3);
+  ROS_INFO_STREAM("df = " << round(1000 * fpResult.df) << " (mm)");
+  ROS_INFO_STREAM("fz = " << round(1000 * fpResult.fz) << " (mm)");
 
-  // KUKA Jacobian | Linear Velocity Component
-  MatrixXd Jv = fkr.jacTool.block<3, 7>(0, 0);
-
-  // KUKA Jacobian | Angular Velocity Component
-  MatrixXd Jw = fkr.jacTool.block<3, 7>(3, 0);
-
-  /* Task Function Components */
-  // Fx or F1:
-  double f1 = (xe.transpose() * (pe - pf))[0];
-  // Fy or F2
-  double f2 = (ye.transpose() * (pe - pf))[0];
-  // Fz or F3
-  double f3 = (ze.transpose() * (pe - pf))[0];
-
-  // ??
-  MatrixXd jacf1 = xe.transpose() * Jv - (pe - pf).transpose() * Utils::S(xe) * Jw;
-  MatrixXd jacf2 = ye.transpose() * Jv - (pe - pf).transpose() * Utils::S(ye) * Jw;
-
-  // Task Function Matrix (2*7)
-  MatrixXd A1 = Utils::matrixVertStack(jacf1, jacf2);
-  // what are the implications of increasing K (making the equation more negative)
-  VectorXd b1 = Utils::vectorVertStack(-K * f1, -K * f2);
-
-  double df = sqrt(f1 * f1 + f2 * f2);
-
-  ROS_INFO_STREAM("df = " << round(1000 * df) << " (mm)");
-  ROS_INFO_STREAM("fz = " << round(1000 * f3) << " (mm)");
-
-  // Jv * u?
   MatrixXd A2 = Jv;
   VectorXd b2 = vlin_des;
 
@@ -407,24 +325,11 @@ VectorXd computeJointVelocitiesKuka3(Manipulator iiwa, VectorXd q_kuka, Vector3d
 
   for (int k = 0; k < round(dt / dti); k++)
   {
-    fkr = iiwa.jacGeo(q);
-    xe = fkr.htmTool.block<3, 1>(0, 0);
-    ye = fkr.htmTool.block<3, 1>(0, 1);
-    ze = fkr.htmTool.block<3, 1>(0, 2);
-    pe = fkr.htmTool.block<3, 1>(0, 3);
+    FulcrumPointResult fpResult = iiwa.computeFulcrumPoint(K, q);
 
-    Jv = fkr.jacTool.block<3, 7>(0, 0);
-    Jw = fkr.jacTool.block<3, 7>(3, 0);
-
-    f1 = (xe.transpose() * (pe - pf))[0];
-    f2 = (ye.transpose() * (pe - pf))[0];
-    f3 = (ze.transpose() * (pe - pf))[0];
-    jacf1 = xe.transpose() * Jv - (pe - pf).transpose() * Utils::S(xe) * Jw;
-    jacf2 = ye.transpose() * Jv - (pe - pf).transpose() * Utils::S(ye) * Jw;
-
-    A1 = Utils::matrixVertStack(jacf1, jacf2);
-    double f1c = -gammafun(f1, 0.01, 150, 2.0);
-    double f2c = -gammafun(f2, 0.01, 150, 2.0);
+    A1 = Utils::matrixVertStack(fpResult.jacfx, fpResult.jacfy);
+    double f1c = -gammafun(fpResult.fx, 0.01, 150, 2.0);
+    double f2c = -gammafun(fpResult, fy, 0.01, 150, 2.0);
     b1 = Utils::vectorVertStack(f1c, f2c);
 
     A2 = Jv;
@@ -443,13 +348,9 @@ VectorXd computeJointVelocitiesKuka3(Manipulator iiwa, VectorXd q_kuka, Vector3d
 
   ROS_INFO_STREAM("dftg  = " << round(1000 * sqrt(f1 * f1 + f2 * f2)) << " (mm)");
 
-  // Recording the Algorithm Ending Time
   double algorithmEndTime = (ros::Time::now() - startingTime).toSec();
 
-  // Calculating the Algorithm Run Time
   double timeDifference = algorithmStartTime - algorithmEndTime;
-  cout << "Computational Time: " << timeDifference << endl;
-  cout << "Max Frequency: " << 1 / timeDifference << " Hz" << endl;
 
   return qdot;
 }
