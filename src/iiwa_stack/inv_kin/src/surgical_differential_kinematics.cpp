@@ -75,6 +75,7 @@ double lastTimeJointsPosition;
 ros::Publisher KUKAJointsPublisher;
 ros::Publisher KUKAJointsVelocityPublisher;
 ros::Publisher KUKAFRIPublisher;
+double g_dt = 0.01;
 
 bool readedJoints = false;
 bool act = true;
@@ -259,7 +260,7 @@ VectorXd computeJointVelocitiesKuka4(Manipulator iiwa, VectorXd q, Vector3d vlin
 {
   double algorithmStartTime = (ros::Time::now() - startingTime).toSec();
 
-  double K = 2.0;
+  double K = 0.5;
   FulcrumPointResult fpResult = iiwa.computeFulcrumPoint(pf, q, K);
   MatrixXd A1 = Utils::matrixVertStack(fpResult.jacfx, fpResult.jacfy);
 
@@ -278,8 +279,8 @@ VectorXd computeJointVelocitiesKuka4(Manipulator iiwa, VectorXd q, Vector3d vlin
   MatrixXd G = Utils::matrixVertStack(MatrixXd::Identity(7, 7), -MatrixXd::Identity(7, 7));
   VectorXd g = -0.5 * VectorXd::Ones(14);
 
-  VectorXd qd = Utils::solveQP(2 * (A2.transpose() * A2 + 0.0001 * MatrixXd::Identity(7, 7)), -2 * A2.transpose() * b2,
-                               G, g, A1, b1);
+  VectorXd qd = Utils::solveQP(2 * (A2.transpose() * A2 + 0.01 * MatrixXd::Identity(7, 7)), -2 * A2.transpose() * b2, G,
+                               g, A1, b1);
 
   double algorithmEndTime = (ros::Time::now() - startingTime).toSec();
 
@@ -307,13 +308,18 @@ VectorXd computeJointVelocitiesKuka3(Manipulator iiwa, VectorXd q_kuka, Vector3d
 
   // Algorithm Parameters
   double dt = 0.01;
-  double dti = 0.01;  // 0.00025
+  double dti = 0.00025 * 6;  // 0.00025
   double K = 0.5;
+  double algorithmEndTime;
+  double timeDifference;
 
   FulcrumPointResult fpResult = iiwa.computeFulcrumPoint(pf, q_kuka, K);
 
   MatrixXd A1 = Utils::matrixVertStack(fpResult.jacfx, fpResult.jacfy);
   VectorXd b1 = Utils::vectorVertStack(-K * fpResult.fx, -K * fpResult.fy);
+
+  vlin_des[0] = 2 * vlin_des[0];
+  vlin_des[1] = 1.5 * vlin_des[1];
 
   ROS_INFO_STREAM("df = " << round(1000 * fpResult.df) << " (mm)");
   ROS_INFO_STREAM("fz = " << round(1000 * fpResult.fz) << " (mm)");
@@ -327,14 +333,13 @@ VectorXd computeJointVelocitiesKuka3(Manipulator iiwa, VectorXd q_kuka, Vector3d
   VectorXd qdot = Utils::hierarchicalSolve(A, b, 0.01);
 
   VectorXd q = q_kuka;
-  vlin_des[0] = 2 * vlin_des[0];
-  vlin_des[1] = 1.5 * vlin_des[1];
 
-  for (int k = 0; k < round(dt / dti); k++)
+  do
   {
     fpResult = iiwa.computeFulcrumPoint(pf, q, K);
 
     A1 = Utils::matrixVertStack(fpResult.jacfx, fpResult.jacfy);
+    A2 = fpResult.fkr.jacTool.block<3, 7>(0, 0);
     double f1c = -gammafun(fpResult.fx, 0.01, 150, 2.0);
     double f2c = -gammafun(fpResult.fy, 0.01, 150, 2.0);
     b1 = Utils::vectorVertStack(f1c, f2c);
@@ -348,15 +353,76 @@ VectorXd computeJointVelocitiesKuka3(Manipulator iiwa, VectorXd q_kuka, Vector3d
                                  MatrixXd::Zero(0, 0), VectorXd::Zero(0), A1, b1);
 
     q += dti * qd;
-  }
+
+    algorithmEndTime = (ros::Time::now() - startingTime).toSec();
+    timeDifference = algorithmEndTime - algorithmStartTime;
+
+  } while (fpResult.df > 0.003 && timeDifference < 1.0 / (200.0));
 
   qdot = 0.35 * (q - q_kuka) / (dt);
 
-  ROS_INFO_STREAM("dftg  = " << round(1000 * sqrt(fpResult.fx * fpResult.fx + fpResult.fy * fpResult.fy)) << " (mm)");
+  ROS_INFO_STREAM("dftg  = " << round(1000 * fpResult.df) << " (mm)");
 
-  double algorithmEndTime = (ros::Time::now() - startingTime).toSec();
+  cout << "Max Frequency: " << 1 / timeDifference << " Hz" << endl;
 
-  double timeDifference = algorithmStartTime - algorithmEndTime;
+  return qdot;
+}
+
+VectorXd computeJointVelocitiesKuka5(Manipulator iiwa, VectorXd q_kuka, Vector3d vlin_des, Vector3d pf)
+{
+  double algorithmStartTime = (ros::Time::now() - startingTime).toSec();
+
+  // Algorithm Parameters
+  double K = 2.0;
+
+  FulcrumPointResult fpResult = iiwa.computeFulcrumPoint(pf, q_kuka, K);
+
+  MatrixXd A1 = Utils::matrixVertStack(fpResult.jacfx, fpResult.jacfy);
+  VectorXd b1 = Utils::vectorVertStack(-K * fpResult.fx, -K * fpResult.fy);
+
+  vlin_des[0] = 2 * vlin_des[0];
+  vlin_des[1] = 1.5 * vlin_des[1];
+
+  // ROS_INFO_STREAM("fz = " << round(1000 * fpResult.fz) << " (mm)");
+
+  MatrixXd A2 = fpResult.fkr.jacTool.block<3, 7>(0, 0);
+  VectorXd b2 = vlin_des;
+
+  vector<MatrixXd> A = {A1, A2};
+  vector<VectorXd> b = {b1, b2};
+
+  VectorXd qdot = Utils::hierarchicalSolve(A, b, 0.0001);
+
+  FulcrumPointResult fpResult_next = iiwa.computeFulcrumPoint(pf, q_kuka + g_dt * qdot, K);
+
+  g_count++;
+
+  if (g_count % 50 == 0)
+  {
+    ROS_INFO_STREAM("--------------------");
+    ROS_INFO_STREAM("df = " << round(10000 * fpResult.df) / 10 << " (mm)");
+    ROS_INFO_STREAM("dftg  = " << round(10000 * fpResult_next.df) / 10 << " (mm)");
+    ROS_INFO_STREAM("A1qdot = " << Utils::printVector(A1 * qdot));
+    ROS_INFO_STREAM("b1 = " << Utils::printVector(b1));
+
+    double dxcalc = (fpResult_next.fx - fpResult.fx) / (g_dt);
+    double dxana = (fpResult.jacfx * qdot)(0, 0);
+
+    double dycalc = (fpResult_next.fy - fpResult.fy) / (g_dt);
+    double dyana = (fpResult.jacfy * qdot)(0, 0);
+
+    ROS_INFO_STREAM("fx = " << fpResult.fx);
+    ROS_INFO_STREAM("fy = " << fpResult.fy);
+    ROS_INFO_STREAM("jacfx = " << fpResult.jacfx);
+    ROS_INFO_STREAM("jacfy = " << fpResult.jacfy);
+
+    ROS_INFO_STREAM("dxcalc = " << dxcalc);
+    ROS_INFO_STREAM("dxana = " << dxana);
+    ROS_INFO_STREAM("dycalc = " << dycalc);
+    ROS_INFO_STREAM("dyana = " << dyana);
+  }
+
+  // cout << "Max Frequency: " << 1 / timeDifference << " Hz" << endl;
 
   return qdot;
 }
@@ -602,16 +668,14 @@ int main(int argc, char* argv[])
         // Testing EEF Linear Velocities
         double tt = (ros::Time::now() - startingTime).toSec();
         Vector3d vlin_des;
-        vlin_des << 0, -0.5 * sin(0.6 * tt), 0;
-
+        vlin_des << 0, 0.05 * sin(0.6 * tt), 0;
         // KUKA Joints Velocitites
         // iiwa: Manipulator, q_kuka: Current Joint Positions, vlin_des: Required EEF Velocities, fp: Fulcrum Point
-        VectorXd qdot_kuka_next = computeJointVelocitiesKuka4(iiwa, q_kuka, 0.05 * vlin_des, fp);
+        VectorXd qdot_kuka_next = computeJointVelocitiesKuka5(iiwa, q_kuka, vlin_des, fp);
         // ROS_INFO_STREAM("qdot = " << Utils::printVector(qdot_kuka_next));
 
         // Filtering Joints Velocities | Smoothen the movement
-        qdot_kuka = 0 * qdot_kuka + qdot_kuka_next;
-        q_kuka_next = q_kuka + dt * qdot_kuka;
+        q_kuka_next = q_kuka + g_dt * qdot_kuka_next;
 
         publishNewJointPosition(iiwa, q_kuka_next);
       }
@@ -622,7 +686,7 @@ int main(int argc, char* argv[])
       {
         ConstControlResult ccr = iiwa.velocityConstControl(q_kuka, param);
         qdot_kuka = ccr.action;
-        q_kuka_next = q_kuka + 1.5 * dt * qdot_kuka;
+        q_kuka_next = q_kuka + 1.5 * g_dt * qdot_kuka;
 
         ROS_INFO_STREAM("qdot: " << Utils::printVector(qdot_kuka));
         ROS_INFO_STREAM("qnext: " << Utils::printVector(q_kuka_next));
