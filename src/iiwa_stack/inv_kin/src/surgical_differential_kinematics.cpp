@@ -259,15 +259,17 @@ VectorXd computeJointVelocitiesKuka4(Manipulator iiwa, VectorXd q, Vector3d vlin
 {
   double algorithmStartTime = (ros::Time::now() - startingTime).toSec();
 
-  FulcrumPointResult fpResult = iiwa.computeFulcrumPoint(K, q_kuka);
-
+  double K = 2.0;
+  FulcrumPointResult fpResult = iiwa.computeFulcrumPoint(pf, q, K);
   MatrixXd A1 = Utils::matrixVertStack(fpResult.jacfx, fpResult.jacfy);
+
   VectorXd b1 = Utils::vectorVertStack(-K * fpResult.fx, -K * fpResult.fy);
 
   vlin_des[0] = 2 * vlin_des[0];
   vlin_des[1] = 1.5 * vlin_des[1];
 
-  MatrixXd A2 = Jv;
+  MatrixXd A2 = fpResult.fkr.jacTool.block<3, 7>(0, 0);
+
   VectorXd b2 = vlin_des;
 
   vector<MatrixXd> A = {A1, A2};
@@ -303,7 +305,12 @@ VectorXd computeJointVelocitiesKuka3(Manipulator iiwa, VectorXd q_kuka, Vector3d
 {
   double algorithmStartTime = (ros::Time::now() - startingTime).toSec();
 
-  FulcrumPointResult fpResult = iiwa.computeFulcrumPoint(K, q_kuka);
+  // Algorithm Parameters
+  double dt = 0.01;
+  double dti = 0.01;  // 0.00025
+  double K = 0.5;
+
+  FulcrumPointResult fpResult = iiwa.computeFulcrumPoint(pf, q_kuka, K);
 
   MatrixXd A1 = Utils::matrixVertStack(fpResult.jacfx, fpResult.jacfy);
   VectorXd b1 = Utils::vectorVertStack(-K * fpResult.fx, -K * fpResult.fy);
@@ -311,7 +318,7 @@ VectorXd computeJointVelocitiesKuka3(Manipulator iiwa, VectorXd q_kuka, Vector3d
   ROS_INFO_STREAM("df = " << round(1000 * fpResult.df) << " (mm)");
   ROS_INFO_STREAM("fz = " << round(1000 * fpResult.fz) << " (mm)");
 
-  MatrixXd A2 = Jv;
+  MatrixXd A2 = fpResult.fkr.jacTool.block<3, 7>(0, 0);
   VectorXd b2 = vlin_des;
 
   vector<MatrixXd> A = {A1, A2};
@@ -325,14 +332,13 @@ VectorXd computeJointVelocitiesKuka3(Manipulator iiwa, VectorXd q_kuka, Vector3d
 
   for (int k = 0; k < round(dt / dti); k++)
   {
-    FulcrumPointResult fpResult = iiwa.computeFulcrumPoint(K, q);
+    fpResult = iiwa.computeFulcrumPoint(pf, q, K);
 
     A1 = Utils::matrixVertStack(fpResult.jacfx, fpResult.jacfy);
     double f1c = -gammafun(fpResult.fx, 0.01, 150, 2.0);
-    double f2c = -gammafun(fpResult, fy, 0.01, 150, 2.0);
+    double f2c = -gammafun(fpResult.fy, 0.01, 150, 2.0);
     b1 = Utils::vectorVertStack(f1c, f2c);
 
-    A2 = Jv;
     b2 = vlin_des;
 
     A = {A1, A2};
@@ -346,7 +352,7 @@ VectorXd computeJointVelocitiesKuka3(Manipulator iiwa, VectorXd q_kuka, Vector3d
 
   qdot = 0.35 * (q - q_kuka) / (dt);
 
-  ROS_INFO_STREAM("dftg  = " << round(1000 * sqrt(f1 * f1 + f2 * f2)) << " (mm)");
+  ROS_INFO_STREAM("dftg  = " << round(1000 * sqrt(fpResult.fx * fpResult.fx + fpResult.fy * fpResult.fy)) << " (mm)");
 
   double algorithmEndTime = (ros::Time::now() - startingTime).toSec();
 

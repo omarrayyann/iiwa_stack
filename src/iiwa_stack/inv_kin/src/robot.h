@@ -57,9 +57,10 @@ struct FulcrumPointResult
   double fx;
   double fy;
   double fz;
-  double dy;
-  double MatrixXd jacfx;
-  double MatrixXd jacfy;
+  double df;
+  MatrixXd jacfx;
+  MatrixXd jacfy;
+  FKResult fkr;
 };
 
 struct TaskResult
@@ -363,5 +364,5 @@ public:
 
   FreeConfigResult checkFreeConfig(VectorXd q = VectorXd(0), FreeConfigParam param = FreeConfigParam());
 
-  FulcrumPointResult computeFulcrumPoint(Manipulator iiwa, double K);
+  FulcrumPointResult computeFulcrumPoint(Vector3d pf, VectorXd q, double K);
 };
