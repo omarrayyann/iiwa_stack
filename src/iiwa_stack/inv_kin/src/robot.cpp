@@ -785,7 +785,7 @@ FKResult Manipulator::fk(VectorXd q, Matrix4d customHtmWorldToBase)
   return fkres;
 }
 
-FulcrumPointResult Manipulator::computeFulcrumPoint(Vector3d pf, VectorXd q, double K)
+FulcrumPointResult Manipulator::computeFulcrumPoint(Vector3d pf, VectorXd q)
 {
   FulcrumPointResult fulcrumPointResult;
 

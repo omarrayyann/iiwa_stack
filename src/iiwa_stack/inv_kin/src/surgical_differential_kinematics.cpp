@@ -261,7 +261,7 @@ VectorXd computeJointVelocitiesKuka4(Manipulator iiwa, VectorXd q, Vector3d vlin
   double algorithmStartTime = (ros::Time::now() - startingTime).toSec();
 
   double K = 0.5;
-  FulcrumPointResult fpResult = iiwa.computeFulcrumPoint(pf, q, K);
+  FulcrumPointResult fpResult = iiwa.computeFulcrumPoint(pf, q);
   MatrixXd A1 = Utils::matrixVertStack(fpResult.jacfx, fpResult.jacfy);
 
   VectorXd b1 = Utils::vectorVertStack(-K * fpResult.fx, -K * fpResult.fy);
@@ -313,7 +313,7 @@ VectorXd computeJointVelocitiesKuka3(Manipulator iiwa, VectorXd q_kuka, Vector3d
   double algorithmEndTime;
   double timeDifference;
 
-  FulcrumPointResult fpResult = iiwa.computeFulcrumPoint(pf, q_kuka, K);
+  FulcrumPointResult fpResult = iiwa.computeFulcrumPoint(pf, q_kuka);
 
   MatrixXd A1 = Utils::matrixVertStack(fpResult.jacfx, fpResult.jacfy);
   VectorXd b1 = Utils::vectorVertStack(-K * fpResult.fx, -K * fpResult.fy);
@@ -336,7 +336,7 @@ VectorXd computeJointVelocitiesKuka3(Manipulator iiwa, VectorXd q_kuka, Vector3d
 
   do
   {
-    fpResult = iiwa.computeFulcrumPoint(pf, q, K);
+    fpResult = iiwa.computeFulcrumPoint(pf, q);
 
     A1 = Utils::matrixVertStack(fpResult.jacfx, fpResult.jacfy);
     A2 = fpResult.fkr.jacTool.block<3, 7>(0, 0);
@@ -375,7 +375,7 @@ VectorXd computeJointVelocitiesKuka5(Manipulator iiwa, VectorXd q_kuka, Vector3d
   // Algorithm Parameters
   double K = 2.0;
 
-  FulcrumPointResult fpResult = iiwa.computeFulcrumPoint(pf, q_kuka, K);
+  FulcrumPointResult fpResult = iiwa.computeFulcrumPoint(pf, q_kuka);
 
   MatrixXd A1 = Utils::matrixVertStack(fpResult.jacfx, fpResult.jacfy);
   VectorXd b1 = Utils::vectorVertStack(-K * fpResult.fx, -K * fpResult.fy);
@@ -393,7 +393,7 @@ VectorXd computeJointVelocitiesKuka5(Manipulator iiwa, VectorXd q_kuka, Vector3d
 
   VectorXd qdot = Utils::hierarchicalSolve(A, b, 0.0001);
 
-  FulcrumPointResult fpResult_next = iiwa.computeFulcrumPoint(pf, q_kuka + g_dt * qdot, K);
+  FulcrumPointResult fpResult_next = iiwa.computeFulcrumPoint(pf, q_kuka + g_dt * qdot);
 
   g_count++;
 

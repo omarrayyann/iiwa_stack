@@ -364,5 +364,5 @@ public:
 
   FreeConfigResult checkFreeConfig(VectorXd q = VectorXd(0), FreeConfigParam param = FreeConfigParam());
 
-  FulcrumPointResult computeFulcrumPoint(Vector3d pf, VectorXd q, double K);
+  FulcrumPointResult computeFulcrumPoint(Vector3d pf, VectorXd q);
 };
