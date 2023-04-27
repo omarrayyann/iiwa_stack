@@ -56,6 +56,59 @@ double VELCONVERT = 1;
 
 ros::Publisher geoTouch;
 
+class TimeSeries
+{
+public:
+  vector<VectorXd> data;
+  vector<double> timeStamp;
+
+  void add(VectorXd v, double t)
+  {
+    data.push_back(v);
+    timeStamp.push_back(t);
+  }
+  void add(double v, double t)
+  {
+    VectorXd vv = VectorXd::Zero(1);
+    vv << v;
+    data.push_back(vv);
+    timeStamp.push_back(t);
+  }
+
+  int size() { return data.size(); }
+  VectorXd atTime(double t)
+  {
+    if (t < timeStamp[0])
+    {
+      ROS_INFO_STREAM("U");
+      return data[0];
+    }
+
+    int k = 0;
+    while (!(timeStamp[k] <= t && timeStamp[k + 1] > t) && k + 1 < timeStamp.size()) k++;
+
+    if (k + 1 == timeStamp.size())
+    {
+      ROS_INFO_STREAM("V");
+      return data[k - 2];
+    }
+    else
+    {
+      double alpha = (t - timeStamp[k]) / (timeStamp[k + 1] - timeStamp[k]);
+      return (1 - alpha) * data[k] + alpha * data[k + 1];
+    }
+  }
+  string print(int n) { return std::to_string(timeStamp[n]) + " " + Utils::printVectorOctave(data[n]) + " "; }
+};
+
+ofstream g_fileDebug;
+TimeSeries g_qTimeSeries;
+TimeSeries g_qdTimeSeries;
+TimeSeries g_taskTimeSeries;
+TimeSeries g_pTimeSeries;
+TimeSeries g_pdTimeSeries;
+TimeSeries g_fpeTimeSeries;
+
 struct Data
 {
   VectorXd data;
@@ -81,6 +134,11 @@ bool readedJoints = false;
 bool act = true;
 
 int g_count = 0;
+
+double getTime()
+{
+  return (ros::Time::now() - startingTime).toSec();
+}
 
 bool safetyCheck(VectorXd q)
 {
@@ -331,8 +389,11 @@ VectorXd computeJointVelocitiesKuka3(Manipulator iiwa, VectorXd q_kuka, Vector3d
   ROS_INFO_STREAM(" ");
   // ROS_INFO_STREAM("fx = " << round(1000 * f1) << "(mm)");
   // ROS_INFO_STREAM("fy = " << round(1000 * f2) << "(mm)");
-  ROS_INFO_STREAM("df = " << round(1000 * sqrt(f1 * f1 + f2 * f2)) << " (mm)");
-  ROS_INFO_STREAM("fz = " << round(1000 * f3) << " (mm)");
+  ROS_INFO_STREAM("df = " << (1000 * sqrt(f1 * f1 + f2 * f2)) << " (mm)");
+  ROS_INFO_STREAM("fz = " << (1000 * f3) << " (mm)");
+
+  g_pTimeSeries.add(pe, getTime());
+  g_fpeTimeSeries.add(f3, getTime());
 
   MatrixXd A2 = Jv;
   VectorXd b2 = vlin_des;
@@ -588,11 +649,6 @@ void printToFile()
 {
   g_fileDebug.open("/home/cair1/Desktop/octavelogs/kukaFPlogs.m");
 
-  if (PARAM_ISSIM)
-    g_fileDebug << "\%Simulation" << std::endl;
-  else
-    g_fileDebug << "\%Real data" << std::endl;
-
   g_fileDebug << "q = [];" << std::endl;
   for (int i = 0; i < g_qTimeSeries.size(); i++)
     g_fileDebug << "q = [q; " << g_qTimeSeries.print(i) << "];" << std::endl;
@@ -616,14 +672,6 @@ void printToFile()
   g_fileDebug << "fpe = [];" << std::endl;
   for (int i = 0; i < g_fpeTimeSeries.size(); i++)
     g_fileDebug << "fpe = [fpe; " << g_fpeTimeSeries.print(i) << "];" << std::endl;
-
-  g_fileDebug << "index = [];" << std::endl;
-  for (int i = 0; i < g_startIndex.size(); i++)
-    g_fileDebug << "index = [index; " << g_startIndex[i] << "];" << std::endl;
-
-  g_fileDebug << "allpd = [];" << std::endl;
-  for (int i = 0; i < g_allpds.size(); i++)
-    g_fileDebug << "allpd = [allpd; " << Utils::printVectorOctave(g_allpds[i]) << "];" << std::endl;
 }
 
 int main(int argc, char* argv[])
@@ -690,6 +738,8 @@ int main(int argc, char* argv[])
     //  reachedStartingPosition = true;
     if (reachedStartingPosition)
     {
+      g_qTimeSeries.add(q_kuka, getTime());
+
       double tt = (ros::Time::now() - startingTime).toSec();
       Vector3d vlin_des;
       vlin_des << 0, 0.05 * sin(0.6 / 2 * tt), 0;
@@ -719,6 +769,11 @@ int main(int argc, char* argv[])
 
         publishNewJointPosition(iiwa, q_kuka_next);
         reachedStartingPosition = ccr.taskResult.task.norm() <= 0.01;
+
+        if (reachedStartingPosition)
+        {
+          ros::Time startingTime = ros::Time::now();
+        }
         ROS_INFO_STREAM(reachedStartingPosition);
 
         file << "qgt=[qgt;" << Utils::printVectorOctave(q_kuka) << "];" << std::endl;
