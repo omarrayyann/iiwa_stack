@@ -144,7 +144,7 @@ vector<Data> touchEEfVelocitites;
 
 // Parameters
 Matrix4d PARAM_HTMSTART = Utils::trn(0.45, 0, 0.55 - 0.4) * Utils::roty(3.14);
-double PARAM_DT = 1.0 / 100;
+double PARAM_DT = 1.0 / 500;
 Vector3d PARAM_FP;
 bool PARAM_ISSIM = false;
 double PARAM_TIME = 0.25;
@@ -300,7 +300,7 @@ double sqrtsgn(double x)
 VectorXd fulcrumPointControl(VectorXd q, Vector3d pd, Vector3d pf)
 {
   // Algorithm Parameters
-  double K = 0.2;
+  double K = 0.1;
 
   FulcrumPointResult fpResult = g_manip.computeFulcrumPoint(pf, q);
 
@@ -596,13 +596,27 @@ int main(int argc, char* argv[])
   double tend, tstart;
   VectorXd qr;
   //
-
+  int h = true;
   while (ros::ok())
   {
     // Mode: going to starting position
     if (g_readedJoints && !g_reachedStartingPosition)
     {
-      ConstControlResult ccr = g_manip.velocityConstControl(getConfig(), param);
+      VectorXd configur = getConfig();
+      ConstControlResult ccr = g_manip.velocityConstControl(configur, param);
+
+      // if (h)
+      // {
+      //   h = 0;
+      //   cout << "starting Confirguration" << endl;
+      //   VectorXd configur_replace;
+      //   configur_replace << ((float)(int)(configur.at(0) * 100)) / 100 << ((float)(int)(configur.at(1) * 100)) / 100
+      //                    << ((float)(int)(configur.at(2) * 100)) / 100 << ((float)(int)(configur.at(3) * 100)) / 100
+      //                    << ((float)(int)(configur.at(4) * 100)) / 100
+      //                    << ((float)(int)(configur.at(5) * 100)) / 100((float)(int)(configur.at(6) * 100)) / 100;
+      //                    configur.re
+      //   ROS_INFO_STREAM(configur);
+      // }
       setConfigSpeed(ccr.action);
       g_reachedStartingPosition = ccr.taskResult.task.norm() <= 0.01;
 

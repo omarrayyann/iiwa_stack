@@ -144,11 +144,11 @@ bool safetyCheck(VectorXd q)
 
 bool publishNewJointPosition(Manipulator iiwa, VectorXd q)
 {
-  if (iiwa.fk(q).htmTool(2, 3) < 0.45 - 0.4)  //! safetyCheck(q)
-  {
-    ROS_INFO("DID NOT SEND ANGLES - COLLISION");
-    return false;
-  }
+  // if (iiwa.fk(q).htmTool(2, 3) < 0.45 - 0.4)  //! safetyCheck(q)
+  // {
+  //   ROS_INFO("DID NOT SEND ANGLES - COLLISION");
+  //   return false;
+  // }
 
   std_msgs::Float64MultiArray messageArray;
   iiwa_msgs::JointPosition jointPosition;
@@ -304,27 +304,37 @@ VectorXd computeJointVelocitiesKuka4(Manipulator iiwa, VectorXd q, Vector3d vlin
 
 VectorXd computeJointVelocitiesKuka3(Manipulator iiwa, VectorXd q_kuka, Vector3d vlin_des, Vector3d pf)
 {
-  double algorithmStartTime = (ros::Time::now() - startingTime).toSec();
+  FKResult fkr = iiwa.jacGeo(q_kuka);
 
-  // Algorithm Parameters
   double dt = 0.01;
-  double dti = 0.00025 * 6;  // 0.00025
+  double dti = 0.00025;
+
   double K = 0.5;
-  double algorithmEndTime;
-  double timeDifference;
 
-  FulcrumPointResult fpResult = iiwa.computeFulcrumPoint(pf, q_kuka);
+  Vector3d xe = fkr.htmTool.block<3, 1>(0, 0);
+  Vector3d ye = fkr.htmTool.block<3, 1>(0, 1);
+  Vector3d ze = fkr.htmTool.block<3, 1>(0, 2);
+  Vector3d pe = fkr.htmTool.block<3, 1>(0, 3);
 
-  MatrixXd A1 = Utils::matrixVertStack(fpResult.jacfx, fpResult.jacfy);
-  VectorXd b1 = Utils::vectorVertStack(-K * fpResult.fx, -K * fpResult.fy);
+  MatrixXd Jv = fkr.jacTool.block<3, 7>(0, 0);
+  MatrixXd Jw = fkr.jacTool.block<3, 7>(3, 0);
 
-  vlin_des[0] = 2 * vlin_des[0];
-  vlin_des[1] = 1.5 * vlin_des[1];
+  double f1 = (xe.transpose() * (pe - pf))[0];
+  double f2 = (ye.transpose() * (pe - pf))[0];
+  double f3 = (ze.transpose() * (pe - pf))[0];
+  MatrixXd jacf1 = xe.transpose() * Jv - (pe - pf).transpose() * Utils::S(xe) * Jw;
+  MatrixXd jacf2 = ye.transpose() * Jv - (pe - pf).transpose() * Utils::S(ye) * Jw;
 
-  ROS_INFO_STREAM("df = " << round(1000 * fpResult.df) << " (mm)");
-  ROS_INFO_STREAM("fz = " << round(1000 * fpResult.fz) << " (mm)");
+  MatrixXd A1 = Utils::matrixVertStack(jacf1, jacf2);
+  VectorXd b1 = Utils::vectorVertStack(-K * f1, -K * f2);
 
-  MatrixXd A2 = fpResult.fkr.jacTool.block<3, 7>(0, 0);
+  ROS_INFO_STREAM(" ");
+  // ROS_INFO_STREAM("fx = " << round(1000 * f1) << "(mm)");
+  // ROS_INFO_STREAM("fy = " << round(1000 * f2) << "(mm)");
+  ROS_INFO_STREAM("df = " << round(1000 * sqrt(f1 * f1 + f2 * f2)) << " (mm)");
+  ROS_INFO_STREAM("fz = " << round(1000 * f3) << " (mm)");
+
+  MatrixXd A2 = Jv;
   VectorXd b2 = vlin_des;
 
   vector<MatrixXd> A = {A1, A2};
@@ -333,37 +343,47 @@ VectorXd computeJointVelocitiesKuka3(Manipulator iiwa, VectorXd q_kuka, Vector3d
   VectorXd qdot = Utils::hierarchicalSolve(A, b, 0.01);
 
   VectorXd q = q_kuka;
+  vlin_des[0] = 2 * vlin_des[0];
+  vlin_des[1] = 1.5 * vlin_des[1];
 
-  do
+  for (int k = 0; k < round(dt / dti); k++)
   {
-    fpResult = iiwa.computeFulcrumPoint(pf, q);
+    fkr = iiwa.jacGeo(q);
+    xe = fkr.htmTool.block<3, 1>(0, 0);
+    ye = fkr.htmTool.block<3, 1>(0, 1);
+    ze = fkr.htmTool.block<3, 1>(0, 2);
+    pe = fkr.htmTool.block<3, 1>(0, 3);
 
-    A1 = Utils::matrixVertStack(fpResult.jacfx, fpResult.jacfy);
-    A2 = fpResult.fkr.jacTool.block<3, 7>(0, 0);
-    double f1c = -gammafun(fpResult.fx, 0.01, 150, 2.0);
-    double f2c = -gammafun(fpResult.fy, 0.01, 150, 2.0);
+    Jv = fkr.jacTool.block<3, 7>(0, 0);
+    Jw = fkr.jacTool.block<3, 7>(3, 0);
+
+    f1 = (xe.transpose() * (pe - pf))[0];
+    f2 = (ye.transpose() * (pe - pf))[0];
+    f3 = (ze.transpose() * (pe - pf))[0];
+    jacf1 = xe.transpose() * Jv - (pe - pf).transpose() * Utils::S(xe) * Jw;
+    jacf2 = ye.transpose() * Jv - (pe - pf).transpose() * Utils::S(ye) * Jw;
+
+    A1 = Utils::matrixVertStack(jacf1, jacf2);
+    double f1c = -gammafun(f1, 0.01, 150, 2.0);
+    double f2c = -gammafun(f2, 0.01, 150, 2.0);
     b1 = Utils::vectorVertStack(f1c, f2c);
 
+    A2 = Jv;
     b2 = vlin_des;
 
     A = {A1, A2};
     b = {b1, b2};
 
+    // VectorXd qd = (Utils::hierarchicalSolve(A, b, 0.001));
     VectorXd qd = Utils::solveQP(2 * (A2.transpose() * A2 + 0.01 * MatrixXd::Identity(7, 7)), -2 * A2.transpose() * b2,
                                  MatrixXd::Zero(0, 0), VectorXd::Zero(0), A1, b1);
 
     q += dti * qd;
-
-    algorithmEndTime = (ros::Time::now() - startingTime).toSec();
-    timeDifference = algorithmEndTime - algorithmStartTime;
-
-  } while (fpResult.df > 0.003 && timeDifference < 1.0 / (200.0));
+  }
 
   qdot = 0.35 * (q - q_kuka) / (dt);
 
-  ROS_INFO_STREAM("dftg  = " << round(1000 * fpResult.df) << " (mm)");
-
-  cout << "Max Frequency: " << 1 / timeDifference << " Hz" << endl;
+  ROS_INFO_STREAM("dftg  = " << round(1000 * sqrt(f1 * f1 + f2 * f2)) << " (mm)");
 
   return qdot;
 }
@@ -564,6 +584,48 @@ void touchCallButton(const omni_msgs::OmniButtonEvent msg)
 
 ofstream file;
 
+void printToFile()
+{
+  g_fileDebug.open("/home/cair1/Desktop/octavelogs/kukaFPlogs.m");
+
+  if (PARAM_ISSIM)
+    g_fileDebug << "\%Simulation" << std::endl;
+  else
+    g_fileDebug << "\%Real data" << std::endl;
+
+  g_fileDebug << "q = [];" << std::endl;
+  for (int i = 0; i < g_qTimeSeries.size(); i++)
+    g_fileDebug << "q = [q; " << g_qTimeSeries.print(i) << "];" << std::endl;
+
+  g_fileDebug << "qd = [];" << std::endl;
+  for (int i = 0; i < g_qdTimeSeries.size(); i++)
+    g_fileDebug << "qd = [qd; " << g_qdTimeSeries.print(i) << "];" << std::endl;
+
+  g_fileDebug << "taskStart = [];" << std::endl;
+  for (int i = 0; i < g_taskTimeSeries.size(); i++)
+    g_fileDebug << "taskStart = [taskStart; " << g_taskTimeSeries.print(i) << "];" << std::endl;
+
+  g_fileDebug << "p = [];" << std::endl;
+  for (int i = 0; i < g_pTimeSeries.size(); i++)
+    g_fileDebug << "p = [p; " << g_pTimeSeries.print(i) << "];" << std::endl;
+
+  g_fileDebug << "pd = [];" << std::endl;
+  for (int i = 0; i < g_pdTimeSeries.size(); i++)
+    g_fileDebug << "pd = [pd; " << g_pdTimeSeries.print(i) << "];" << std::endl;
+
+  g_fileDebug << "fpe = [];" << std::endl;
+  for (int i = 0; i < g_fpeTimeSeries.size(); i++)
+    g_fileDebug << "fpe = [fpe; " << g_fpeTimeSeries.print(i) << "];" << std::endl;
+
+  g_fileDebug << "index = [];" << std::endl;
+  for (int i = 0; i < g_startIndex.size(); i++)
+    g_fileDebug << "index = [index; " << g_startIndex[i] << "];" << std::endl;
+
+  g_fileDebug << "allpd = [];" << std::endl;
+  for (int i = 0; i < g_allpds.size(); i++)
+    g_fileDebug << "allpd = [allpd; " << Utils::printVectorOctave(g_allpds[i]) << "];" << std::endl;
+}
+
 int main(int argc, char* argv[])
 {
   compTime.open("CompTime.txt");
@@ -628,57 +690,13 @@ int main(int argc, char* argv[])
     //  reachedStartingPosition = true;
     if (reachedStartingPosition)
     {
-      // ROS_INFO_STREAM("act " << act);
+      double tt = (ros::Time::now() - startingTime).toSec();
+      Vector3d vlin_des;
+      vlin_des << 0, 0.05 * sin(0.6 / 2 * tt), 0;
+      VectorXd qdot_kuka_next = computeJointVelocitiesKuka3(iiwa, q_kuka, vlin_des, fp);
+      q_kuka_next = q_kuka + g_dt * qdot_kuka_next;
 
-      if (!act)
-      {
-        ros::spinOnce();
-        continue;
-      }
-
-      if (1)
-      {
-        /* Uncommente Below and add this inside if statement "touchEEfVelocitites.size() > 1"
-
-        // Touch Geomagic EEF Linear Velocities | From Subscriber
-        Vector3d vlin_des_aux = touchEEfVelocitites[touchEEfVelocitites.size() - 1].data;
-        Vector3d vlin_des;
-        vlin_des << vlin_des_aux[1], -vlin_des_aux[0], vlin_des_aux[2];
-        vlin_des = VELCONVERT * vlin_des;
-
-        // Touch Geomagic Joints Positions | From Subscriber
-        VectorXd q_gt = touchJoints[touchJoints.size() - 1].data;
-
-        // Touch Geomagic Joints Velocities | From Subscriber
-        VectorXd qdot_gt = touchJointsVelocities[touchJointsVelocities.size() - 1].data;
-
-        // Touch Geomagic Jacobian Matrix
-        MatrixXd jacg = Manipulator::createGeoTouch().jacGeo(q_gt).jacTool;
-
-        // Touch Geomagic Jacobian | Angular Velocities Component
-        MatrixXd Jw_gt = jacg.block<3, 5>(3, 0);
-
-        // Touch Geomagic EEF Angular Velocities | Jacobian(Angular Velocities Component) * Joint Velocities)
-        Vector3d vang_des_aux = Jw_gt * qdot_gt;
-        Vector3d vang_des;
-        vang_des << -vang_des_aux[2], -vang_des_aux[0], vang_des_aux[1];
-
-        */
-
-        // Testing EEF Linear Velocities
-        double tt = (ros::Time::now() - startingTime).toSec();
-        Vector3d vlin_des;
-        vlin_des << 0, 0.05 * sin(0.6 * tt), 0;
-        // KUKA Joints Velocitites
-        // iiwa: Manipulator, q_kuka: Current Joint Positions, vlin_des: Required EEF Velocities, fp: Fulcrum Point
-        VectorXd qdot_kuka_next = computeJointVelocitiesKuka5(iiwa, q_kuka, vlin_des, fp);
-        // ROS_INFO_STREAM("qdot = " << Utils::printVector(qdot_kuka_next));
-
-        // Filtering Joints Velocities | Smoothen the movement
-        q_kuka_next = q_kuka + g_dt * qdot_kuka_next;
-
-        publishNewJointPosition(iiwa, q_kuka_next);
-      }
+      publishNewJointPosition(iiwa, q_kuka_next);
     }
     else
     {
@@ -722,4 +740,5 @@ int main(int argc, char* argv[])
     ros::spinOnce();
     loop_rate.sleep();
   }
+  printToFile();
 }
