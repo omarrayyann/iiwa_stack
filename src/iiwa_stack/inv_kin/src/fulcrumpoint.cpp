@@ -143,11 +143,13 @@ vector<Data> touchEEfPosition;
 vector<Data> touchEEfVelocitites;
 
 // Parameters
-Matrix4d PARAM_HTMSTART = Utils::trn(0.45, 0, 0.55 - 0.4) * Utils::roty(3.14);
-double PARAM_DT = 1.0 / 500;
+Matrix4d PARAM_HTMSTART =
+    Utils::trn(0.45, 0, 0.55 - 0.4) * Utils::roty(3.14);  // Matrix4d PARAM_HTMSTART = Utils::trn(0.45,
+                                                          // 0, 0.55 - 0.4) * Utils::roty(3.14);
+double PARAM_DT = 1.0 / 250;
 Vector3d PARAM_FP;
 bool PARAM_ISSIM = false;
-double PARAM_TIME = 0.25;
+double PARAM_TIME = 0.01;
 double FILTER_PARAM = 0.01;
 double VELCONVERT = 1;
 
@@ -226,7 +228,7 @@ bool safetyCheck(VectorXd q)
 
 bool setConfig(VectorXd q)
 {
-  if (g_manip.fk(q).htmTool(2, 3) < 0.45 - 0.4)  //! safetyCheck(q)
+  if (g_manip.fk(q).htmTool(2, 3) < 0.45 - 0.5)  //! safetyCheck(q)
   {
     ROS_INFO("ERROR: Collision of the tool with the ground. Not sending");
     return false;
@@ -300,7 +302,7 @@ double sqrtsgn(double x)
 VectorXd fulcrumPointControl(VectorXd q, Vector3d pd, Vector3d pf)
 {
   // Algorithm Parameters
-  double K = 0.1;
+  double K = 0.45;  // 0.35 0.40
 
   FulcrumPointResult fpResult = g_manip.computeFulcrumPoint(pf, q);
 
@@ -309,12 +311,12 @@ VectorXd fulcrumPointControl(VectorXd q, Vector3d pd, Vector3d pf)
 
   MatrixXd A2 = fpResult.fkr.jacTool.block<3, 7>(0, 0);
   Vector3d pe = fpResult.fkr.htmTool.block<3, 1>(0, 3);
-  VectorXd b2 = -8.0 * (pe - pd);
+  VectorXd b2 = -25.0 * (pe - pd);  // 14
 
   vector<MatrixXd> A = {A1, A2};
   vector<VectorXd> b = {b1, b2};
 
-  VectorXd qdot = Utils::hierarchicalSolve(A, b, 0.0001);
+  VectorXd qdot = Utils::hierarchicalSolve(A, b, 0.01);  // 0.05
 
   FulcrumPointResult fpResult_next = g_manip.computeFulcrumPoint(pf, q + PARAM_DT * qdot);
 
@@ -350,7 +352,7 @@ VectorXd fulcrumPointControl2(VectorXd q, Vector3d pd, Vector3d pf)
     vector<MatrixXd> A = {A1, A2};
     vector<VectorXd> b = {b1, b2};
 
-    VectorXd qdot = Utils::hierarchicalSolve(A, b, 0.0001);
+    VectorXd qdot = Utils::hierarchicalSolve(A, b, 0.05);
     qr += dti * qdot;
   }
 
@@ -361,6 +363,33 @@ VectorXd fulcrumPointControl2(VectorXd q, Vector3d pd, Vector3d pf)
   }
 
   return (qr - q) / PARAM_DT;
+}
+
+VectorXd fulcrumPointControl3(VectorXd q, Vector3d vd, Vector3d pf)
+{
+  // Algorithm Parameters
+  double K = 0.45;  // 0.35 0.40
+
+  FulcrumPointResult fpResult = g_manip.computeFulcrumPoint(pf, q);
+
+  MatrixXd A1 = Utils::matrixVertStack(fpResult.jacfx, fpResult.jacfy);
+  VectorXd b1 = Utils::vectorVertStack(-K * sqrtsgn(fpResult.fx), -K * sqrtsgn(fpResult.fy));
+
+  MatrixXd A2 = fpResult.fkr.jacTool.block<3, 7>(0, 0);
+  Vector3d pe = fpResult.fkr.htmTool.block<3, 1>(0, 3);
+  VectorXd b2 = vd;  // 14
+
+  vector<MatrixXd> A = {A1, A2};
+  vector<VectorXd> b = {b1, b2};
+
+  VectorXd qdot = Utils::hierarchicalSolve(A, b, 0.005);
+
+  FulcrumPointResult fpResult_next = g_manip.computeFulcrumPoint(pf, q + PARAM_DT * qdot);
+
+  // ROS_INFO_STREAM("DEsv = " << Utils::printVector(vd));
+  // ROS_INFO_STREAM("Truev = " << Utils::printVector(A2 * qdot));
+
+  return qdot;
 }
 
 void touchCallEEFPosition(const geometry_msgs::PoseStamped msg)
@@ -456,6 +485,10 @@ void kukaCallJoints(const sensor_msgs::JointState msg)
         msg.position[6];
     g_qkuka = q_kuka_temp;
   }
+  // if (!g_readedJoints)
+  // {
+  //   g_qkuka = VectorXd::Zero(7);
+  // }
   g_readedJoints = true;
 }
 
@@ -544,9 +577,12 @@ TwoTimeSeries generatePath(VectorXd pd0, double t0, double maxtime)
   while (t - t0 < maxtime + 0.1)
   {
     desp.add(pd, t);
-    vlin_des << 0, 0.012 * sin(2 * 3.14 * t / 20), 0;
+    // vlin_des << 0, 4 * 0.04 * sin(2 * 3.14 * t / 20), 0;
+    vlin_des << 4 * 0.04 * sin(2 * 3.14 * t / 20), 0, 0;
     pd = pd + dt * vlin_des;
     VectorXd qdot = fulcrumPointControl(q, pd, PARAM_FP);
+
+    // VectorXd qdot = fulcrumPointControl3(q, vlin_des, PARAM_FP);
 
     q += dt * qdot;
     t += dt;
@@ -558,6 +594,174 @@ TwoTimeSeries generatePath(VectorXd pd0, double t0, double maxtime)
   tts.b = desp;
 
   return tts;
+}
+
+void simulateMotion(VectorXd q0, VelocityConstControlParam param, double dt)
+{
+  ofstream pyFile;
+
+  pyFile.open("/home/cair1/PycharmProjects/uaibot_vinicius/test/cbfvf/data/testmotion.py");
+
+  pyFile << "import uaibot as ub" << std::endl;
+  pyFile << "import numpy as np" << std::endl << std::endl;
+
+  pyFile << "sim = ub.Simulation.create_sim_factory([])" << std::endl;
+  pyFile << "sim.set_parameters(width=1600, height=950)" << std::endl;
+  pyFile << "iiwa = ub.Robot.create_kuka_lbr_iiwa()" << std::endl;
+  pyFile << "sim.add(iiwa)" << std::endl << std::endl;
+
+  double t = 0;
+
+  for (int n = 0; n < 10; n++)
+  {
+    VectorXd q = q0 + Utils::randVec(7, -0.03, 0.03);
+    pyFile << "#Trial number " << (n + 1) << std::endl;
+    for (int k = 0; k < round(10 / dt); k++)
+    {
+      q += g_manip.velocityConstControl(q, param).action * dt;
+      pyFile << "iiwa.add_ani_frame(" << t << "," << Utils::printVector(q) << ")" << std::endl;
+      t += dt;
+    }
+
+    t += 2;
+    pyFile << std::endl << std::endl;
+  }
+
+  pyFile << "sim.save('//home//cair1//Desktop//uaibottest','testmotioniiwa')";
+}
+
+Matrix3d fulcrumPointSingularityMatrix(VectorXd q, Vector3d pf)
+{
+  FulcrumPointResult fpResult = g_manip.computeFulcrumPoint(pf, q);
+
+  MatrixXd Jf = Utils::matrixVertStack(fpResult.jacfx, fpResult.jacfy);
+  MatrixXd Jv = fpResult.fkr.jacTool.block<3, 7>(0, 0);
+  MatrixXd A = Utils::matrixVertStack(Jv, Jf);
+  MatrixXd B = (A * A.transpose()).inverse();
+
+  return B.block<3, 3>(0, 0);
+}
+
+Matrix3d fulcrumPointSingularityMatrix(VectorXd q)
+{
+  FKResult fkr = g_manip.fk(q);
+  Vector3d pf = fkr.htmTool.block<3, 1>(0, 3) - 0.1 * fkr.htmTool.block<3, 1>(0, 2);
+  return fulcrumPointSingularityMatrix(q, pf);
+}
+
+struct FulcrumPointSingularityResult
+{
+  double sing;
+  double singx;
+  double singy;
+  double singz;
+  VectorXd gradSing;
+};
+
+FulcrumPointSingularityResult fulcrumPointSingularity(VectorXd q)
+{
+  Matrix3d M = fulcrumPointSingularityMatrix(q);
+  VectorXd gradSing = 0 * q;
+  double sing = M.determinant();
+
+  double delta = 0.05;
+
+  for (int i = 0; i < gradSing.rows(); i++)
+  {
+    VectorXd qp = q;
+    qp[i] += delta;
+    gradSing[i] = (fulcrumPointSingularityMatrix(qp).determinant() - sing) / delta;
+  }
+
+  FulcrumPointSingularityResult fpsr;
+
+  fpsr.sing = sing;
+  fpsr.gradSing = gradSing;
+  fpsr.singx = M(0, 0);
+  fpsr.singy = M(1, 1);
+  fpsr.singz = M(2, 2);
+
+  return fpsr;
+}
+
+void findGoodConfig(VectorXd q0, VelocityConstControlParam param, double dt)
+{
+  ofstream pyFile;
+
+  pyFile.open("/home/cair1/PycharmProjects/uaibot_vinicius/test/cbfvf/data/testmotion.py");
+
+  pyFile << "import uaibot as ub" << std::endl;
+  pyFile << "import numpy as np" << std::endl << std::endl;
+
+  pyFile << "sim = ub.Simulation.create_sim_factory([])" << std::endl;
+  pyFile << "sim.set_parameters(width=1600, height=950)" << std::endl;
+  pyFile << "iiwa = ub.Robot.create_kuka_lbr_iiwa()" << std::endl;
+  pyFile << "sim.add(iiwa)" << std::endl << std::endl;
+
+  double t = 0;
+
+  VectorXd q = q0;
+  pyFile << "#Going to initial configuration" << std::endl;
+  for (int k = 0; k < round(10 / dt); k++)
+  {
+    q += g_manip.velocityConstControl(q, param).action * dt;
+    pyFile << "iiwa.add_ani_frame(" << t << "," << Utils::printVector(q) << ")" << std::endl;
+    t += dt;
+  }
+
+  pyFile << "#Find a good configuration by gradient descent" << std::endl;
+
+  FulcrumPointSingularityResult fpsr = fulcrumPointSingularity(q);
+
+  ROS_INFO_STREAM("sx = " << fpsr.singx << ", sy = " << fpsr.singy << ", sz = " << fpsr.singz);
+
+  for (int k = 0; k < round(0.5 / dt); k++)
+  {
+    fpsr = fulcrumPointSingularity(q);
+
+    q += -dt * fpsr.gradSing.normalized();
+
+    pyFile << "iiwa.add_ani_frame(" << t << "," << Utils::printVector(q) << ")" << std::endl;
+    t += dt;
+  }
+
+  ROS_INFO_STREAM("sx = " << fpsr.singx << ", sy = " << fpsr.singy << ", sz = " << fpsr.singz);
+
+  ROS_INFO_STREAM(Utils::printMatrix(g_manip.fk(q).htmTool));
+  ROS_INFO_STREAM(Utils::printVector(q));
+
+  pyFile << "sim.save('//home//cair1//Desktop//uaibottest','testmotioniiwa')";
+}
+
+void optimizeSing(VectorXd q0)
+{
+  VectorXd q = q0;
+
+  for (int k = 0; k < 2000; k++)
+  {
+    FKResult fkr = g_manip.jacGeo(q);
+    FulcrumPointSingularityResult fpsr = fulcrumPointSingularity(q);
+
+    MatrixXd Jvxy = fkr.jacTool.block<2, 7>(0, 0);
+
+    double px = fkr.htmTool(0, 3);
+    double py = fkr.htmTool(1, 3);
+
+    VectorXd r = VectorXd::Zero(2);
+    r << -0.5 * (px - 0.25), -0.5 * py;
+
+    MatrixXd A = Utils::matrixVertStack(Jvxy, fpsr.gradSing.transpose());
+    VectorXd b = Utils::vectorVertStack(r, -0.5);
+
+    VectorXd qdot = Utils::pinv(Jvxy, 0.005) * r;
+
+    q += qdot * 0.005;
+
+    ROS_INFO_STREAM("sx = " << fpsr.singx << ", sy = " << fpsr.singy << ", sz = " << fpsr.singz << ", y = " << py
+                            << ", sing = " << fpsr.sing << " x = " << px);
+  }
+
+  ROS_INFO_STREAM(Utils::printVector(q));
 }
 
 int main(int argc, char* argv[])
@@ -573,6 +777,15 @@ int main(int argc, char* argv[])
   KUKAFRIPublisher = n.advertise<std_msgs::Float64MultiArray>("/iiwa/PositionController/command", 3);
 
   ros::Rate loop_rate(1 / PARAM_DT);
+
+  //
+  // PARAM_HTMSTART << -0.88810, -0.18040, -0.42260, 0.26334, -0.04370, 0.94873, -0.31300, -0.00710, 0.45746, -0.25950,
+  //    -0.85050, 0.08227, 0.00000, 0.00000, 0.00000, 1.00000;
+
+  //
+
+  // PARAM_HTMSTART << -0.38110, 0.15219, -0.91180, 0.14836, 0.05167, 0.98832, 0.14334, 0.06185, 0.92305, 0.00752,
+  //     -0.38460, 0.14074, 0.00000, 0.00000, 0.00000, 1.00000;
 
   VelocityConstControlParam param;
   param.taskHtm = PARAM_HTMSTART;
@@ -596,42 +809,77 @@ int main(int argc, char* argv[])
   double tend, tstart;
   VectorXd qr;
   //
-  int h = true;
+
+  // for (int n = 0; n < 10; n++)
+  // {
+  //   VectorXd qtest = VectorXd::Zero(7);
+  //   qtest = Utils::randVec(7, -0.001, 0.001);
+  //   ConstControlResult ccra = g_manip.velocityConstControl(qtest, param);
+
+  //   ROS_INFO_STREAM("AAAA");
+  //   ROS_INFO_STREAM("qtest " << Utils::printVector(qtest));
+  //   ROS_INFO_STREAM("u " << Utils::printVector(ccra.action));
+  // }
+
+  // ROS_INFO_STREAM("Simulating motion...");
+  // simulateMotion(VectorXd::Zero(7), param, PARAM_DT);
+  // ROS_INFO_STREAM("Simulating finished!");
+
+  VectorXd PARAM_STARTQ0 = VectorXd::Zero(7);
+  PARAM_STARTQ0 << -2.50550, -0.43200, 2.59080, -1.74650, 0.09803, 1.76272, -0.12920;
+
+  // PARAM_STARTQ0 << -2.51810, -0.40110, 2.56308, -1.62440, 0.05895, 1.67021, -0.12920;
+
+  FulcrumPointSingularityResult fpsr = fulcrumPointSingularity(PARAM_STARTQ0);
+
+  ROS_INFO_STREAM("sx = " << fpsr.singx << ", sy = " << fpsr.singy << ", sz = " << fpsr.singz);
+
+  Matrix4d htmstart = g_manip.fk(PARAM_STARTQ0).htmTool;
+  PARAM_FP = htmstart.block<3, 1>(0, 3) - 0.1 * htmstart.block<3, 1>(0, 2);
+  // PARAM_FP[2] += 0.10;
+  g_pd = htmstart.block<3, 1>(0, 3);
+
+  // optimizeSing(PARAM_STARTQ0);
+
+  ROS_INFO_STREAM("z = " << Utils::printVector(htmstart.block<3, 1>(0, 2)));
+
   while (ros::ok())
   {
     // Mode: going to starting position
     if (g_readedJoints && !g_reachedStartingPosition)
     {
-      VectorXd configur = getConfig();
-      ConstControlResult ccr = g_manip.velocityConstControl(configur, param);
+      // ConstControlResult ccr = g_manip.velocityConstControl(getConfig(), param);
 
-      // if (h)
-      // {
-      //   h = 0;
-      //   cout << "starting Confirguration" << endl;
-      //   VectorXd configur_replace;
-      //   configur_replace << ((float)(int)(configur.at(0) * 100)) / 100 << ((float)(int)(configur.at(1) * 100)) / 100
-      //                    << ((float)(int)(configur.at(2) * 100)) / 100 << ((float)(int)(configur.at(3) * 100)) / 100
-      //                    << ((float)(int)(configur.at(4) * 100)) / 100
-      //                    << ((float)(int)(configur.at(5) * 100)) / 100((float)(int)(configur.at(6) * 100)) / 100;
-      //                    configur.re
-      //   ROS_INFO_STREAM(configur);
-      // }
-      setConfigSpeed(ccr.action);
-      g_reachedStartingPosition = ccr.taskResult.task.norm() <= 0.01;
+      // setConfigSpeed(ccr.action);
+
+      setConfigSpeed(-5.5 * (getConfig() - PARAM_STARTQ0));
+      // g_reachedStartingPosition = ccr.taskResult.task.norm() <= 0.01;
+      g_reachedStartingPosition = (getConfig() - PARAM_STARTQ0).norm() <= 0.02;
 
       if (g_reachedStartingPosition)
       {
         g_startingTime = ros::Time::now();
         g_count = 0;
+
+        findGoodConfig(getConfig(), param, PARAM_DT);
+
+        // Matrix3d G = fulcrumPointSingularityMatrix(getConfig(), PARAM_FP);
+        // ROS_INFO_STREAM("SingX =  " << G(0, 0));
+        // ROS_INFO_STREAM("SingY =  " << G(1, 1));
+        // ROS_INFO_STREAM("SingZ =  " << G(2, 2));
+
+        // FulcrumPointSingularityResult fpsr = fulcrumPointSingularity(getConfig());
+
+        // ROS_INFO_STREAM("sing = " << fpsr.sing);
       }
 
       // Display
       if (g_count % 50)
       {
         ROS_INFO_STREAM("--Going to starting position--");
-        // ROS_INFO_STREAM("t = " << getTime());
-        ROS_INFO_STREAM("Task = " << Utils::printVector(ccr.taskResult.task));
+        ROS_INFO_STREAM("t = " << getTime());
+        // ROS_INFO_STREAM("Task = " << Utils::printVector(ccr.taskResult.task));
+        ROS_INFO_STREAM("e = " << Utils::printVector(getConfig() - PARAM_STARTQ0));
       }
     }
 
