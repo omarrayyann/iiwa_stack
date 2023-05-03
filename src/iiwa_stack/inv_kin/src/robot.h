@@ -186,7 +186,7 @@ struct VelocityConstControlParam
   double distSafeObs = 0.02;
   double distSafeJoint = 0.01;
   double distSafeAuto = 0.02;
-  double eps = 0.001;
+  double eps = 0.005;
   double tol = 0.005;
   double maxDistAABB = 0.2;
   double h = 0;
