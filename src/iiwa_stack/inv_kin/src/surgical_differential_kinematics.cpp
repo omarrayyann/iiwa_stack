@@ -752,33 +752,35 @@ int main(int argc, char* argv[])
     {
       if (reachedZero && readedJoints)
       {
-        ConstControlResult ccr = iiwa.velocityConstControl(q_kuka, param);
-        qdot_kuka = ccr.action;
-        q_kuka_next = q_kuka + 1.5 * g_dt * qdot_kuka;
-
-        ROS_INFO_STREAM("qdot: " << Utils::printVector(qdot_kuka));
-        ROS_INFO_STREAM("qnext: " << Utils::printVector(q_kuka_next));
-
-        ROS_INFO_STREAM("Task: " << Utils::printVector(ccr.taskResult.task));
-
-        double t = (ros::Time::now() - startingTime).toSec();
-
-        // double q1d = 0.3 * sin(2 * 3.14 * t / 6.0);
-        // double q1dd = q1d + 0 * (q1d - q_kuka[0]);
-        // q_kuka_next << q1dd, 0, 0, 0, 0, 0, 0;
-
-        publishNewJointPosition(iiwa, q_kuka_next);
-        reachedStartingPosition = ccr.taskResult.task.norm() <= 0.01;
-
-        if (reachedStartingPosition)
+        if (act)
         {
-          ros::Time startingTime = ros::Time::now();
-        }
-        ROS_INFO_STREAM(reachedStartingPosition);
+          ConstControlResult ccr = iiwa.velocityConstControl(q_kuka, param);
+          qdot_kuka = ccr.action;
+          q_kuka_next = q_kuka + 1.5 * g_dt * qdot_kuka;
 
-        file << "qgt=[qgt;" << Utils::printVectorOctave(q_kuka) << "];" << std::endl;
-        file << "qdotgt=[qdotgt;" << Utils::printVectorOctave(q_kuka_next) << "];" << std::endl;
-        file << "t=[t;" << t << "];" << std::endl;
+          ROS_INFO_STREAM("qdot: " << Utils::printVector(qdot_kuka));
+          ROS_INFO_STREAM("qnext: " << Utils::printVector(q_kuka_next));
+
+          ROS_INFO_STREAM("Task: " << Utils::printVector(ccr.taskResult.task));
+
+          double t = (ros::Time::now() - startingTime).toSec();
+
+          // double q1d = 0.3 * sin(2 * 3.14 * t / 6.0);
+          // double q1dd = q1d + 0 * (q1d - q_kuka[0]);
+          // q_kuka_next << q1dd, 0, 0, 0, 0, 0, 0;
+          publishNewJointPosition(iiwa, q_kuka_next);
+          reachedStartingPosition = ccr.taskResult.task.norm() <= 0.01;
+
+          if (reachedStartingPosition)
+          {
+            ros::Time startingTime = ros::Time::now();
+          }
+          ROS_INFO_STREAM(reachedStartingPosition);
+
+          file << "qgt=[qgt;" << Utils::printVectorOctave(q_kuka) << "];" << std::endl;
+          file << "qdotgt=[qdotgt;" << Utils::printVectorOctave(q_kuka_next) << "];" << std::endl;
+          file << "t=[t;" << t << "];" << std::endl;
+        }
       }
       else
       {
