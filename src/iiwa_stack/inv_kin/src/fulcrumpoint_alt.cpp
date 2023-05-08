@@ -308,6 +308,15 @@ VectorXd sqrtsgn(VectorXd x)
   return y;
 }
 
+struct FulcrumPointSingularityResult
+{
+  double sing;
+  double singx;
+  double singy;
+  double singz;
+  VectorXd gradSing;
+};
+
 VectorXd fulcrumPointControl(VectorXd q, Vector3d pd, Vector3d pf)
 {
   // Algorithm Parameters
@@ -548,6 +557,8 @@ void printToFile()
     g_fileDebug << "allpd = [allpd; " << Utils::printVectorOctave(g_allpds[i]) << "];" << std::endl;
 }
 
+FulcrumPointSingularityResult fpsr;
+
 TwoTimeSeries generatePath(VectorXd pd0, double t0, double maxtime)
 {
   VectorXd q = getConfig();
@@ -563,8 +574,16 @@ TwoTimeSeries generatePath(VectorXd pd0, double t0, double maxtime)
   {
     desp.add(pd, t);
 
+    // sensitivity factor (rad/mm^2)
+    VectorXd sf = VectorXd::Zero(3);
+    float sensitivity_factor = 2.5;
+    sf << sqrt(fpsr.singx), sqrt(fpsr.singy), sqrt(fpsr.singz);
+    VectorXd sf_norm = sf.normalized();
+    sf_norm *= sensitivity_factor;
+
     Vector3d vlin_des_aux = touchEEfVelocitites[touchEEfVelocitites.size() - 1].data;
-    vlin_des << 2.5 * vlin_des_aux[1], -vlin_des_aux[0], vlin_des_aux[2];
+    // vlin_des << 2.5 * vlin_des_aux[1], -vlin_des_aux[0], vlin_des_aux[2];
+    vlin_des << sf_norm[0] * vlin_des_aux[1], sf_norm[1] * -vlin_des_aux[0], sf_norm[2] * vlin_des_aux[2];
 
     double PARAM_MAX_VLIND_DES = 5.0;
 
@@ -573,9 +592,13 @@ TwoTimeSeries generatePath(VectorXd pd0, double t0, double maxtime)
       vlin_des = PARAM_MAX_VLIND_DES * vlin_des.normalized();
     }
 
-    vlin_des *= 0.05;
+    vlin_des *= 0.035;
     // vlin_des << 0, 0.02 * cos(2 * 3.14 * t / 10), 0;
 
+    if (!act)
+    {
+      vlin_des *= 0;
+    }
     pd = pd + dt * vlin_des;
     VectorXd qdot = fulcrumPointControl(q, pd, PARAM_FP);
 
@@ -645,15 +668,6 @@ Matrix3d fulcrumPointSingularityMatrix(VectorXd q)
   Vector3d pf = fkr.htmTool.block<3, 1>(0, 3) - 0.1 * fkr.htmTool.block<3, 1>(0, 2);
   return fulcrumPointSingularityMatrix(q, pf);
 }
-
-struct FulcrumPointSingularityResult
-{
-  double sing;
-  double singx;
-  double singy;
-  double singz;
-  VectorXd gradSing;
-};
 
 FulcrumPointSingularityResult fulcrumPointSingularity(VectorXd q)
 {
@@ -959,11 +973,12 @@ int main(int argc, char* argv[])
   // ROS_INFO_STREAM("Simulating finished!");
 
   VectorXd PARAM_STARTQ0 = VectorXd::Zero(7);
+
   PARAM_STARTQ0 << -2.46990, -0.89940, 1.45063, -1.57330, -2.24190, -1.64980, -0.94870;
+  // PARAM_STARTQ0 << 0.56253, 1.33735, 1.61440, 1.63326, 1.34592, -1.50130, -0.72890;
+  // PARAM_STARTQ0 << 0.61916, 1.42963, -1.60960, -1.60650, 1.43321, 1.59124, -1.25610;
 
-  // PARAM_STARTQ0 << 2.24606, -0.02400, 0.25347, 1.69688, -0.01940, -1.41680, -0.65480;
-
-  FulcrumPointSingularityResult fpsr = fulcrumPointSingularity(PARAM_STARTQ0);
+  fpsr = fulcrumPointSingularity(PARAM_STARTQ0);
 
   ROS_INFO_STREAM("sx = " << fpsr.singx << ", sy = " << fpsr.singy << ", sz = " << fpsr.singz);
 
