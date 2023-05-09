@@ -228,7 +228,7 @@ bool safetyCheck(VectorXd q)
 
 bool setConfig(VectorXd q)
 {
-  if (g_manip.fk(q).htmTool(2, 3) < 0.45 - 0.5)  //! safetyCheck(q)
+  if (g_manip.fk(q).htmTool(2, 3) < 0.45 - 0.5 - 1000)  //! safetyCheck(q)
   {
     ROS_INFO("ERROR: Collision of the tool with the ground. Not sending");
     return false;
@@ -308,26 +308,36 @@ VectorXd sqrtsgn(VectorXd x)
   return y;
 }
 
-VectorXd fulcrumPointControl(VectorXd q, Vector3d pd, Vector3d pf)
+VectorXd fulcrumPointControl(VectorXd qt, Vector3d pd, Vector3d pf)
 {
   // Algorithm Parameters
-  double K = 0.50;  // 0.35 0.40 0.45
+  double K = 0.60;  // 0.50 0.60
 
-  FulcrumPointResult fpResult = g_manip.computeFulcrumPoint(pf, q);
+  VectorXd q = qt;
+  double dt = PARAM_DT;
+  VectorXd qdot;
 
-  MatrixXd A1 = Utils::matrixVertStack(fpResult.jacfx, fpResult.jacfy);
-  VectorXd b1 = Utils::vectorVertStack(-K * sqrtsgn(fpResult.fx), -K * sqrtsgn(fpResult.fy));
+  for (int n = 0; n < round(PARAM_DT / dt); n++)
+  {
+    FulcrumPointResult fpResult = g_manip.computeFulcrumPoint(pf, q);
 
-  MatrixXd A2 = fpResult.fkr.jacTool.block<3, 7>(0, 0);
-  Vector3d pe = fpResult.fkr.htmTool.block<3, 1>(0, 3);
-  VectorXd b2 = -25.0 * (pe - pd);  // 14
+    MatrixXd A1 = Utils::matrixVertStack(fpResult.jacfx, fpResult.jacfy);
+    VectorXd b1 = Utils::vectorVertStack(-K * sqrtsgn(fpResult.fx), -K * sqrtsgn(fpResult.fy));
 
-  vector<MatrixXd> A = {A1, A2};
-  vector<VectorXd> b = {b1, b2};
+    MatrixXd A2 = fpResult.fkr.jacTool.block<3, 7>(0, 0);
+    Vector3d pe = fpResult.fkr.htmTool.block<3, 1>(0, 3);
+    VectorXd b2 = -20.0 * (pe - pd);  // 20
 
-  VectorXd qdot = Utils::hierarchicalSolve(A, b, 0.02);  // 0.05
+    vector<MatrixXd> A = {A2, A1};
+    vector<VectorXd> b = {b2, b1};
 
-  FulcrumPointResult fpResult_next = g_manip.computeFulcrumPoint(pf, q + PARAM_DT * qdot);
+    qdot = Utils::hierarchicalSolve(A, b, 0.00001);  // 0.0005 0.0001
+    q += qdot * dt;
+  }
+
+  qdot = (q - qt) / PARAM_DT;
+
+  FulcrumPointResult fpResult_next = g_manip.computeFulcrumPoint(pf, q);
 
   return qdot;
 }
@@ -546,31 +556,41 @@ void printToFile()
   g_fileDebug << "allpd = [];" << std::endl;
   for (int i = 0; i < g_allpds.size(); i++)
     g_fileDebug << "allpd = [allpd; " << Utils::printVectorOctave(g_allpds[i]) << "];" << std::endl;
+
+  g_fileDebug << "figure; plot3(-p(:,3),p(:,2),p(:,4),'bo'); hold on; plot3(-pd(:,3),pd(:,2),pd(:,4),'r'); hold off"
+              << std::endl;
+  g_fileDebug << "figure; plot(p(:,1),p(:,2),'b'); hold on; plot(p(:,1),pd(:,2),'r'); hold off;" << std::endl;
+  g_fileDebug << "figure; plot(p(:,1),p(:,3),'b'); hold on; plot(p(:,1),pd(:,3),'r'); hold off;" << std::endl;
+  g_fileDebug << "figure; plot(p(:,1),p(:,4),'b'); hold on; plot(p(:,1),pd(:,4),'r'); hold off;" << std::endl;
+  g_fileDebug << "figure; plot(fpe(:,1),1000*fpe(:,2)); hold on; plot(fpe(:,1),0*fpe(:,1) + 4,'r--'); hold off;"
+              << std::endl;
+  g_fileDebug << "figure; plot(p(:,1),sqrt(sum((p(:,2:4)-pd(:,2:4)).^2'))*1000);" << std::endl;
 }
 
-TwoTimeSeries generatePath(VectorXd pd0, double t0, double maxtime)
+TwoTimeSeries generatePath(VectorXd p0, double t0, double maxtime)
 {
   VectorXd q = getConfig();
   double t = t0;
-  VectorXd pd = pd0;
   Vector3d vlin_des;
 
   TimeSeries path;
   TimeSeries desp;
 
-  double dt = 3 * PARAM_DT;
+  double dt = 3 * PARAM_DT;  // 3 * PARAM_DT
   while (t - t0 < maxtime + 0.1)
   {
-    desp.add(pd, t);
-
     vlin_des << 0, 0.02 * cos(2 * 3.14 * t / 10), 0;
 
-    // vlin_des << touchEEfVelocitites.at(touchEEfVelocitites.size() - 1).data[0]
-    //          << touchEEfVelocitites.at(touchEEfVelocitites.size() - 1).data[1]
-    //          << touchEEfVelocitites.at(touchEEfVelocitites.size() - 1).data[2];
+    Vector3d deltap = Vector3d::Zero(3);
+    double rho = min(t / 5, 1);
 
-    pd = pd + dt * vlin_des;
-    VectorXd qdot = fulcrumPointControl(q, pd, PARAM_FP);
+    // deltap << 0.03 * rho * cos(2 * 3.14 * t / 20), 0.03 * sin(2 * 3.14 * t / 20), -0.05 * rho;
+
+    deltap << 0.03 * rho * cos(2 * 3.14 * t / 20), 0.03 * sin(2 * 3.14 * t / 20),
+        -0.05 * rho + 0.06 * sin(2 * 3.14 * t / 60);
+
+    VectorXd qdot = fulcrumPointControl(q, p0 + deltap, PARAM_FP);
+    desp.add(p0 + deltap, t);
 
     // VectorXd qdot = fulcrumPointControl3(q, vlin_des, PARAM_FP);
 
@@ -934,6 +954,8 @@ int main(int argc, char* argv[])
   TimeSeries qpath;
   double tend, tstart;
   VectorXd qr;
+
+  Vector3d p0;
   //
 
   // for (int n = 0; n < 10; n++)
@@ -954,7 +976,7 @@ int main(int argc, char* argv[])
   VectorXd PARAM_STARTQ0 = VectorXd::Zero(7);
   // PARAM_STARTQ0 << -2.50550, -0.43200, 2.59080, -1.74650, 0.09803, 1.76272, -0.12920;
 
-  PARAM_STARTQ0 << 2.24606, -0.02400, 0.25347, 1.69688, -0.01940, -1.41680, -0.65480;
+  PARAM_STARTQ0 << 0.61916, 1.42963, -1.60960, -1.60650, 1.43321, 1.59124, -1.25610;
 
   FulcrumPointSingularityResult fpsr = fulcrumPointSingularity(PARAM_STARTQ0);
 
@@ -969,7 +991,7 @@ int main(int argc, char* argv[])
 
   // optimizeSing3();
 
-  optimizeSing4();
+  // optimizeSing4();
 
   while (ros::ok())
   {
@@ -988,6 +1010,7 @@ int main(int argc, char* argv[])
       {
         g_startingTime = ros::Time::now();
         g_count = 0;
+        p0 = g_manip.fk(getConfig()).htmTool.block<3, 1>(0, 3);
 
         // findGoodConfig(getConfig(), param, PARAM_DT);
 
@@ -1027,7 +1050,7 @@ int main(int argc, char* argv[])
         Vector3d p_real = g_manip.fk(getConfig()).htmTool.block<3, 1>(0, 3);
         // Vector3d pd_last = g_targetq.a.data[g_targetq.a.size() - 1];
         double tstart = getTime();
-        g_targetq = generatePath(p_real, getTime(), PARAM_TIME);
+        g_targetq = generatePath(p0, getTime(), PARAM_TIME);
 
         //
         g_startIndex.push_back(g_startIndex[g_startIndex.size() - 1] + g_targetq.b.size());
