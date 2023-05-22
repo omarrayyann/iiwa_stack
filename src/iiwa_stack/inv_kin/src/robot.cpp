@@ -811,7 +811,7 @@ FulcrumPointResult Manipulator::computeFulcrumPoint(Vector3d pf, VectorXd q)
   fulcrumPointResult.fy = (ye.transpose() * (pe - pf))[0];
   // Fz or F3
   fulcrumPointResult.fz = (ze.transpose() * (pe - pf))[0];
-  // Computing the distacne to target
+  // Computing the distance to target
   fulcrumPointResult.df =
       sqrt(fulcrumPointResult.fx * fulcrumPointResult.fx + fulcrumPointResult.fy * fulcrumPointResult.fy);
 
