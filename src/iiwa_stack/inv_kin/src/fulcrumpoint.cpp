@@ -56,6 +56,8 @@ struct Data
   double timeStamp;
 };
 
+bool run = true;
+
 class TimeSeries
 {
 public:
@@ -122,11 +124,13 @@ TimeSeries g_taskTimeSeries;
 TimeSeries g_pTimeSeries;
 TimeSeries g_pdTimeSeries;
 TimeSeries g_fpeTimeSeries;
+TimeSeries g_fzTimeSeries;
 // TimeSeries g_targetq;
 TwoTimeSeries g_targetq;
 
 vector<int> g_startIndex = {1};
 vector<VectorXd> g_allpds;
+float previous_error = 0;
 
 double g_tsim = 0;
 
@@ -311,7 +315,7 @@ VectorXd sqrtsgn(VectorXd x)
 VectorXd fulcrumPointControl(VectorXd qt, Vector3d pd, Vector3d pf)
 {
   // Algorithm Parameters
-  double K = 0.60;  // 0.50 0.60
+  double K = 14.0;  // 0.50 0.60
 
   VectorXd q = qt;
   double dt = PARAM_DT;
@@ -322,16 +326,17 @@ VectorXd fulcrumPointControl(VectorXd qt, Vector3d pd, Vector3d pf)
     FulcrumPointResult fpResult = g_manip.computeFulcrumPoint(pf, q);
 
     MatrixXd A1 = Utils::matrixVertStack(fpResult.jacfx, fpResult.jacfy);
-    VectorXd b1 = Utils::vectorVertStack(-K * sqrtsgn(fpResult.fx), -K * sqrtsgn(fpResult.fy));
+    VectorXd b1 = Utils::vectorVertStack(-K * (fpResult.fx), -K * (fpResult.fy));
 
     MatrixXd A2 = fpResult.fkr.jacTool.block<3, 7>(0, 0);
     Vector3d pe = fpResult.fkr.htmTool.block<3, 1>(0, 3);
-    VectorXd b2 = -20.0 * (pe - pd);  // 20
+    VectorXd b2 = -(27.0) * (pe - pd);  // 27
+    // VectorXd b2 = -0.55 * sqrtsgn(pe - pd);  // 20
 
     vector<MatrixXd> A = {A2, A1};
     vector<VectorXd> b = {b2, b1};
 
-    qdot = Utils::hierarchicalSolve(A, b, 0.00001);  // 0.0005 0.0001
+    qdot = Utils::hierarchicalSolve(A, b, 0.0000001);  // 0.0005 0.0001
     q += qdot * dt;
   }
 
@@ -549,6 +554,10 @@ void printToFile()
   for (int i = 0; i < g_fpeTimeSeries.size(); i++)
     g_fileDebug << "fpe = [fpe; " << g_fpeTimeSeries.print(i) << "];" << std::endl;
 
+  g_fileDebug << "fz = [];" << std::endl;
+  for (int i = 0; i < g_fzTimeSeries.size(); i++)
+    g_fileDebug << "fz = [fz; " << g_fzTimeSeries.print(i) << "];" << std::endl;
+
   g_fileDebug << "index = [];" << std::endl;
   for (int i = 0; i < g_startIndex.size(); i++)
     g_fileDebug << "index = [index; " << g_startIndex[i] << "];" << std::endl;
@@ -583,11 +592,17 @@ TwoTimeSeries generatePath(VectorXd p0, double t0, double maxtime)
 
     Vector3d deltap = Vector3d::Zero(3);
     double rho = min(t / 5, 1);
+    // if (t / 5 >= 1)
+    // {
+    //   cout << "Joint Position: ";
+    //   ROS_INFO_STREAM(g_qkuka);
+    //   run = false;
+    // }
 
     // deltap << 0.03 * rho * cos(2 * 3.14 * t / 20), 0.03 * sin(2 * 3.14 * t / 20), -0.05 * rho;
 
     deltap << 0.03 * rho * cos(2 * 3.14 * t / 20), 0.03 * sin(2 * 3.14 * t / 20),
-        -0.15 * rho + 0.06 * sin(2 * 3.14 * t / 60);
+        -0.04 * rho + 0.06 * sin(2 * 3.14 * t / 40);
 
     VectorXd qdot = fulcrumPointControl(q, p0 + deltap, PARAM_FP);
     desp.add(p0 + deltap, t);
@@ -891,7 +906,7 @@ void optimizeSing4()
     for (int i = 0; i < 7; i++)
       withinLimits = withinLimits && (qrand[i] < g_manip.qMax[i] - 0.3) && (qrand[i] > g_manip.qMin[i] + 0.3);
 
-    if (fkr.htmTool(0, 3) > 0.4 && abs(fkr.htmTool(1, 3)) < 0.2 && fkr.htmTool(2, 3) > -0.15 && withinLimits)
+    if (fkr.htmTool(0, 3) > 0.4 && abs(fkr.htmTool(1, 3)) < 0.2 && fkr.htmTool(2, 3) > -0.5 && withinLimits)
     {
       fpsr = fulcrumPointSingularity(qrand);
 
@@ -912,7 +927,7 @@ void optimizeSing4()
 
 int main(int argc, char* argv[])
 {
-  ros::init(argc, argv, "fulcrumpoint");
+  ros::init(argc, argv, "fulcrumpoint_alt");
   ros::NodeHandle n;
 
   ros::Subscriber KUKASubscriber1 = n.subscribe("/iiwa/joint_states", 100, kukaCallJoints);
@@ -976,7 +991,11 @@ int main(int argc, char* argv[])
   VectorXd PARAM_STARTQ0 = VectorXd::Zero(7);
   // PARAM_STARTQ0 << -2.50550, -0.43200, 2.59080, -1.74650, 0.09803, 1.76272, -0.12920;
 
+  // good one
   PARAM_STARTQ0 << 0.61916, 1.42963, -1.60960, -1.60650, 1.43321, 1.59124, -1.25610;
+
+  // lower
+  // PARAM_STARTQ0 << 0.597664, 1.51509, -1.52233, -1.60007, 1.52039, 1.52795, -1.25678;
 
   FulcrumPointSingularityResult fpsr = fulcrumPointSingularity(PARAM_STARTQ0);
 
@@ -991,9 +1010,7 @@ int main(int argc, char* argv[])
 
   // optimizeSing3();
 
-  // optimizeSing4();
-
-  while (ros::ok())
+  while (ros::ok() && run)
   {
     // Mode: going to starting position
     if (g_readedJoints && !g_reachedStartingPosition)
@@ -1066,6 +1083,7 @@ int main(int argc, char* argv[])
         g_pTimeSeries.add(pe, getTime());
         g_pdTimeSeries.add(g_targetq.b.atTime(getTime()), getTime());
         g_fpeTimeSeries.add(fpr.df, getTime());
+        g_fzTimeSeries.add(fpr.fz, getTime());
 
         // Display
         if (g_count % 100)
@@ -1074,6 +1092,7 @@ int main(int argc, char* argv[])
           ROS_INFO_STREAM("t = " << getTime());
           ROS_INFO_STREAM("errorfp = " << round(10000 * fpr.df) / 10 << " (mm)");
         }
+        previous_error = fpr.df * 1000;
       }
     }
 

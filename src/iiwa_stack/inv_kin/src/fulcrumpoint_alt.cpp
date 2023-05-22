@@ -56,6 +56,8 @@ struct Data
   double timeStamp;
 };
 
+bool run = true;
+
 class TimeSeries
 {
 public:
@@ -228,7 +230,7 @@ bool safetyCheck(VectorXd q)
 
 bool setConfig(VectorXd q)
 {
-  if (g_manip.fk(q).htmTool(2, 3) < 0.45 - 100.0)  //! safetyCheck(q)
+  if (g_manip.fk(q).htmTool(2, 3) < 0.45 - 0.5 - 1000)  //! safetyCheck(q)
   {
     ROS_INFO("ERROR: Collision of the tool with the ground. Not sending");
     return false;
@@ -308,35 +310,37 @@ VectorXd sqrtsgn(VectorXd x)
   return y;
 }
 
-struct FulcrumPointSingularityResult
-{
-  double sing;
-  double singx;
-  double singy;
-  double singz;
-  VectorXd gradSing;
-};
-
-VectorXd fulcrumPointControl(VectorXd q, Vector3d pd, Vector3d pf)
+VectorXd fulcrumPointControl(VectorXd qt, Vector3d pd, Vector3d pf)
 {
   // Algorithm Parameters
-  double K = 1.0;  // 0.35 0.40 0.45 0.50 0.60
+  double K = 0.60;  // 0.50 0.60
 
-  FulcrumPointResult fpResult = g_manip.computeFulcrumPoint(pf, q);
+  VectorXd q = qt;
+  double dt = PARAM_DT;
+  VectorXd qdot;
 
-  MatrixXd A1 = Utils::matrixVertStack(fpResult.jacfx, fpResult.jacfy);
-  VectorXd b1 = Utils::vectorVertStack(-K * sqrtsgn(fpResult.fx), -K * sqrtsgn(fpResult.fy));
+  for (int n = 0; n < round(PARAM_DT / dt); n++)
+  {
+    FulcrumPointResult fpResult = g_manip.computeFulcrumPoint(pf, q);
 
-  MatrixXd A2 = fpResult.fkr.jacTool.block<3, 7>(0, 0);
-  Vector3d pe = fpResult.fkr.htmTool.block<3, 1>(0, 3);
-  VectorXd b2 = -25.0 * (pe - pd);  // 14
+    MatrixXd A1 = Utils::matrixVertStack(fpResult.jacfx, fpResult.jacfy);
+    VectorXd b1 = Utils::vectorVertStack(-K * sqrtsgn(fpResult.fx), -K * sqrtsgn(fpResult.fy));
 
-  vector<MatrixXd> A = {A1, A2};
-  vector<VectorXd> b = {b1, b2};
+    MatrixXd A2 = fpResult.fkr.jacTool.block<3, 7>(0, 0);
+    Vector3d pe = fpResult.fkr.htmTool.block<3, 1>(0, 3);
+    VectorXd b2 = -20.0 * (pe - pd);  // 20
+    // VectorXd b2 = -3.0 * sqrtsgn(pe - pd);  // 20
 
-  VectorXd qdot = Utils::hierarchicalSolve(A, b, 0.02);  // 0.05
+    vector<MatrixXd> A = {A2, A1};
+    vector<VectorXd> b = {b2, b1};
 
-  FulcrumPointResult fpResult_next = g_manip.computeFulcrumPoint(pf, q + PARAM_DT * qdot);
+    qdot = Utils::hierarchicalSolve(A, b, 0.00001);  // 0.0005 0.0001
+    q += qdot * dt;
+  }
+
+  qdot = (q - qt) / PARAM_DT;
+
+  FulcrumPointResult fpResult_next = g_manip.computeFulcrumPoint(pf, q);
 
   return qdot;
 }
@@ -555,62 +559,51 @@ void printToFile()
   g_fileDebug << "allpd = [];" << std::endl;
   for (int i = 0; i < g_allpds.size(); i++)
     g_fileDebug << "allpd = [allpd; " << Utils::printVectorOctave(g_allpds[i]) << "];" << std::endl;
+
+  g_fileDebug << "figure; plot3(-p(:,3),p(:,2),p(:,4),'bo'); hold on; plot3(-pd(:,3),pd(:,2),pd(:,4),'r'); hold off"
+              << std::endl;
+  g_fileDebug << "figure; plot(p(:,1),p(:,2),'b'); hold on; plot(p(:,1),pd(:,2),'r'); hold off;" << std::endl;
+  g_fileDebug << "figure; plot(p(:,1),p(:,3),'b'); hold on; plot(p(:,1),pd(:,3),'r'); hold off;" << std::endl;
+  g_fileDebug << "figure; plot(p(:,1),p(:,4),'b'); hold on; plot(p(:,1),pd(:,4),'r'); hold off;" << std::endl;
+  g_fileDebug << "figure; plot(fpe(:,1),1000*fpe(:,2)); hold on; plot(fpe(:,1),0*fpe(:,1) + 4,'r--'); hold off;"
+              << std::endl;
+  g_fileDebug << "figure; plot(p(:,1),sqrt(sum((p(:,2:4)-pd(:,2:4)).^2'))*1000);" << std::endl;
 }
 
-FulcrumPointSingularityResult fpsr;
-
-TwoTimeSeries generatePath(VectorXd pd0, double t0, double maxtime)
+TwoTimeSeries generatePath(VectorXd p0, double t0, double maxtime)
 {
   VectorXd q = getConfig();
   double t = t0;
-  VectorXd pd = pd0;
   Vector3d vlin_des;
 
   TimeSeries path;
   TimeSeries desp;
 
-  double dt = 3 * PARAM_DT;
+  double dt = 3 * PARAM_DT;  // 3 * PARAM_DT
   while (t - t0 < maxtime + 0.1)
   {
-    desp.add(pd, t);
+    vlin_des << 0, 0.02 * cos(2 * 3.14 * t / 10), 0;
 
-    // sensitivity factor (rad/mm^2)
-    VectorXd sf = VectorXd::Zero(3);
-    float sensitivity_factor = 5;
-    sf << sqrt(fpsr.singx), sqrt(fpsr.singy), sqrt(fpsr.singz);
-    VectorXd sf_norm = sf.normalized();
-    sf_norm *= sensitivity_factor;
+    Vector3d deltap = Vector3d::Zero(3);
+    double rho = min(t / 5, 1);
+    // if (t / 5 >= 1)
+    // {
+    //   cout << "Joint Position: ";
+    //   ROS_INFO_STREAM(g_qkuka);
+    //   run = false;
+    // }
 
-    sf_norm << 2.0, 1, 1;
+    // deltap << 0.03 * rho * cos(2 * 3.14 * t / 20), 0.03 * sin(2 * 3.14 * t / 20), -0.05 * rho;
 
-    Vector3d vlin_des_aux = touchEEfVelocitites[touchEEfVelocitites.size() - 1].data;
-    // vlin_des << 2.5 * vlin_des_aux[1], -vlin_des_aux[0], vlin_des_aux[2];
-    vlin_des << sf_norm[0] * vlin_des_aux[1], sf_norm[1] * -vlin_des_aux[0], sf_norm[2] * vlin_des_aux[2];
+    deltap << 0.03 * rho * cos(2 * 3.14 * t / 20), 0.03 * sin(2 * 3.14 * t / 20),
+        -0.05 * rho + 0.06 * sin(2 * 3.14 * t / 60);
 
-    double PARAM_MAX_VLIND_DES = 5.0;
+    // deltap << 0, 0, -0.10 * rho + 0.06 * sin(2 * 3.14 * t / 60);
 
-    if (vlin_des.norm() >= PARAM_MAX_VLIND_DES)
-    {
-      vlin_des = PARAM_MAX_VLIND_DES * vlin_des.normalized();
-    }
+    VectorXd qdot = fulcrumPointControl(q, p0 + deltap, PARAM_FP);
+    desp.add(p0 + deltap, t);
 
-    vlin_des *= 0.05;  // 0.035
-    // vlin_des << 0, 0, 0.12 * cos(2 * 3.14 * t / 10);
-
-    if (!act)
-    {
-      vlin_des *= 0;
-    }
-    pd = pd + dt * vlin_des;
-
-    pd << 0.48673, -0.13270, 0.10789 + 0.06 * sin(2 * 3.14 * t / 10);
-
-    pd << 0.48673 + 0.03 * cos(2 * 3.14 * t / 30), -0.13270 + 0.03 * sin(2 * 3.14 * t / 30),
-        0.10789 + 0.06 * sin(2 * 3.14 * t / 90);
-
-    VectorXd qdot = fulcrumPointControl(q, pd, PARAM_FP);
-
-    // VectorXd qdot = fulcrumPointControl3(q, 0.3 * vlin_des, PARAM_FP);
+    // VectorXd qdot = fulcrumPointControl3(q, vlin_des, PARAM_FP);
 
     q += dt * qdot;
     t += dt;
@@ -676,6 +669,15 @@ Matrix3d fulcrumPointSingularityMatrix(VectorXd q)
   Vector3d pf = fkr.htmTool.block<3, 1>(0, 3) - 0.1 * fkr.htmTool.block<3, 1>(0, 2);
   return fulcrumPointSingularityMatrix(q, pf);
 }
+
+struct FulcrumPointSingularityResult
+{
+  double sing;
+  double singx;
+  double singy;
+  double singz;
+  VectorXd gradSing;
+};
 
 FulcrumPointSingularityResult fulcrumPointSingularity(VectorXd q)
 {
@@ -900,7 +902,7 @@ void optimizeSing4()
     for (int i = 0; i < 7; i++)
       withinLimits = withinLimits && (qrand[i] < g_manip.qMax[i] - 0.3) && (qrand[i] > g_manip.qMin[i] + 0.3);
 
-    if (fkr.htmTool(0, 3) > 0.4 && abs(fkr.htmTool(1, 3)) < 0.2 && fkr.htmTool(2, 3) > -0.15 && withinLimits)
+    if (fkr.htmTool(0, 3) > 0.6 && abs(fkr.htmTool(1, 3)) < 0.2 && fkr.htmTool(2, 3) > -0.15 && withinLimits)
     {
       fpsr = fulcrumPointSingularity(qrand);
 
@@ -921,7 +923,7 @@ void optimizeSing4()
 
 int main(int argc, char* argv[])
 {
-  ros::init(argc, argv, "fulcrumpoint_alt");
+  ros::init(argc, argv, "fulcrumpoint");
   ros::NodeHandle n;
 
   ros::Subscriber KUKASubscriber1 = n.subscribe("/iiwa/joint_states", 100, kukaCallJoints);
@@ -959,11 +961,13 @@ int main(int argc, char* argv[])
 
   if (PARAM_ISSIM) g_readedJoints = true;
 
+  //
   TimeSeries qpath;
   double tend, tstart;
   VectorXd qr;
 
-  // Write me a function that reverse a string.
+  Vector3d p0;
+  //
 
   // for (int n = 0; n < 10; n++)
   // {
@@ -981,12 +985,14 @@ int main(int argc, char* argv[])
   // ROS_INFO_STREAM("Simulating finished!");
 
   VectorXd PARAM_STARTQ0 = VectorXd::Zero(7);
+  // PARAM_STARTQ0 << -2.50550, -0.43200, 2.59080, -1.74650, 0.09803, 1.76272, -0.12920;
 
-  PARAM_STARTQ0 << -2.46990, -0.89940, 1.45063, -1.57330, -2.24190, -1.64980, -0.94870;
-  // PARAM_STARTQ0 << 0.56253, 1.33735, 1.61440, 1.63326, 1.34592, -1.50130, -0.72890;
+  // good one
   // PARAM_STARTQ0 << 0.61916, 1.42963, -1.60960, -1.60650, 1.43321, 1.59124, -1.25610;
 
-  fpsr = fulcrumPointSingularity(PARAM_STARTQ0);
+  PARAM_STARTQ0 << 0.597664, 1.51509, -1.52233, -1.60007, 1.52039, 1.52795, -1.25678;
+
+  FulcrumPointSingularityResult fpsr = fulcrumPointSingularity(PARAM_STARTQ0);
 
   ROS_INFO_STREAM("sx = " << fpsr.singx << ", sy = " << fpsr.singy << ", sz = " << fpsr.singz);
 
@@ -999,9 +1005,9 @@ int main(int argc, char* argv[])
 
   // optimizeSing3();
 
-  // optimizeSing4();
+  optimizeSing4();
 
-  while (ros::ok())
+  while (ros::ok() && run)
   {
     // Mode: going to starting position
     if (g_readedJoints && !g_reachedStartingPosition)
@@ -1018,8 +1024,7 @@ int main(int argc, char* argv[])
       {
         g_startingTime = ros::Time::now();
         g_count = 0;
-        ROS_INFO_STREAM("STARTING POSITION!!!");
-        ROS_INFO_STREAM(Utils::printVector(g_manip.fk(getConfig()).htmTool.block<3, 1>(0, 3)));
+        p0 = g_manip.fk(getConfig()).htmTool.block<3, 1>(0, 3);
 
         // findGoodConfig(getConfig(), param, PARAM_DT);
 
@@ -1054,60 +1059,36 @@ int main(int argc, char* argv[])
       // VectorXd qdot = fulcrumPointControl2(getConfig(), g_pd, PARAM_FP);
       // setConfigSpeed(qdot);
 
-      double t = getTime();
-      Vector3d pd;
-      pd << 0.48673 + 0.03 * cos(2 * 3.14 * t / 30), -0.13270 + 0.03 * sin(2 * 3.14 * t / 30),
-          0.10789 + 0.06 * sin(2 * 3.14 * t / 90);
-
-      VectorXd qdot = fulcrumPointControl(getConfig(), pd, PARAM_FP);
-      ROS_INFO_STREAM("qdot = " << Utils::printVector(qdot));
-      setConfigSpeed(0.5 * qdot);
-
-      // Compute some things to store
-      FulcrumPointResult fpr = g_manip.computeFulcrumPoint(PARAM_FP, getConfig());
-
-      if (g_count % 100)
+      if (!(g_count % ((int)(PARAM_TIME / PARAM_DT))))
       {
-        ROS_INFO_STREAM("--Fulcrum point movement--");
-        ROS_INFO_STREAM("t = " << getTime());
-        ROS_INFO_STREAM("errorfp = " << round(10000 * fpr.df) / 10 << " (mm)");
-        ROS_INFO_STREAM("insertion = " << round(10000 * fpr.fz) / 10 << " (mm)");
+        Vector3d p_real = g_manip.fk(getConfig()).htmTool.block<3, 1>(0, 3);
+        // Vector3d pd_last = g_targetq.a.data[g_targetq.a.size() - 1];
+        double tstart = getTime();
+        g_targetq = generatePath(p0, getTime(), PARAM_TIME);
+
+        //
+        g_startIndex.push_back(g_startIndex[g_startIndex.size() - 1] + g_targetq.b.size());
+        for (int s = 0; s < g_targetq.b.size(); s++) g_allpds.push_back(g_targetq.b.data[s]);
       }
+      else
+      {
+        setConfig(g_targetq.a.atTime(getTime()));
 
-      // if (!(g_count % ((int)(PARAM_TIME / PARAM_DT))))
-      // {
-      //   Vector3d p_real = g_manip.fk(getConfig()).htmTool.block<3, 1>(0, 3);
-      //   // Vector3d pd_last = g_targetq.a.data[g_targetq.a.size() - 1];
-      //   double tstart = getTime();
-      //   double algorithmStartTime = (ros::Time::now()).toSec();
-      //   g_targetq = generatePath(p_real, getTime(), PARAM_TIME);
-      //   double algorithmEndTime = (ros::Time::now()).toSec();
-      //   double timeDifference = algorithmEndTime - algorithmStartTime;
-      //   // cout << "Max Frequency: " << 1 / (timeDifference / 2) << " Hz" << endl;
-      //   //
-      //   g_startIndex.push_back(g_startIndex[g_startIndex.size() - 1] + g_targetq.b.size());
-      //   for (int s = 0; s < g_targetq.b.size(); s++) g_allpds.push_back(g_targetq.b.data[s]);
-      // }
-      // else
-      // {
-      //   setConfig(g_targetq.a.atTime(getTime()));
+        // Compute some things to store
+        FulcrumPointResult fpr = g_manip.computeFulcrumPoint(PARAM_FP, getConfig());
+        Vector3d pe = fpr.fkr.htmTool.block<3, 1>(0, 3);
+        g_pTimeSeries.add(pe, getTime());
+        g_pdTimeSeries.add(g_targetq.b.atTime(getTime()), getTime());
+        g_fpeTimeSeries.add(fpr.df, getTime());
 
-      //   // Compute some things to store
-      //   FulcrumPointResult fpr = g_manip.computeFulcrumPoint(PARAM_FP, getConfig());
-      //   Vector3d pe = fpr.fkr.htmTool.block<3, 1>(0, 3);
-      //   g_pTimeSeries.add(pe, getTime());
-      //   g_pdTimeSeries.add(g_targetq.b.atTime(getTime()), getTime());
-      //   g_fpeTimeSeries.add(fpr.df, getTime());
-
-      //   // Display
-      //   if (g_count % 100)
-      //   {
-      //     ROS_INFO_STREAM("--Fulcrum point movement--");
-      //     ROS_INFO_STREAM("t = " << getTime());
-      //     ROS_INFO_STREAM("errorfp = " << round(10000 * fpr.df) / 10 << " (mm)");
-      //     ROS_INFO_STREAM("insertion = " << round(10000 * fpr.fz) / 10 << " (mm)");
-      //   }
-      // }
+        // Display
+        if (g_count % 100)
+        {
+          ROS_INFO_STREAM("--Fulcrum point movement--");
+          ROS_INFO_STREAM("t = " << getTime());
+          ROS_INFO_STREAM("errorfp = " << round(10000 * fpr.df) / 10 << " (mm)");
+        }
+      }
     }
 
     g_count++;
