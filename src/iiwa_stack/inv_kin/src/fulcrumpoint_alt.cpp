@@ -923,7 +923,7 @@ void optimizeSing4()
 
 int main(int argc, char* argv[])
 {
-  ros::init(argc, argv, "fulcrumpoint");
+  ros::init(argc, argv, "fulcrumpoint_alt");
   ros::NodeHandle n;
 
   ros::Subscriber KUKASubscriber1 = n.subscribe("/iiwa/joint_states", 100, kukaCallJoints);

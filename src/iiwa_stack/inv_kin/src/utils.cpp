@@ -57,6 +57,7 @@ Matrix4d Utils::trn(Vector3d v)
 Matrix4d Utils::trn(double x, double y, double z)
 {
   Matrix4d trn;
+
   trn << 1, 0, 0, x, 0, 1, 0, y, 0, 0, 1, z, 0, 0, 0, 1;
 
   return trn;

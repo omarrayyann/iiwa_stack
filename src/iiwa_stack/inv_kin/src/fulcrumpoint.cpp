@@ -49,6 +49,7 @@
 #include "iiwa_msgs/JointQuantity.h"
 
 using namespace std;
+ros::Time g_startingTime;
 
 struct Data
 {
@@ -112,7 +113,6 @@ struct TwoTimeSeries
 // Global variables
 VectorXd g_qkuka = VectorXd::Zero(7);
 bool g_readedJoints = false;
-ros::Time g_startingTime;
 int g_count = 0;
 Vector3d g_pd;
 Manipulator g_manip = Manipulator::createKukaIIWA();
@@ -122,6 +122,7 @@ TimeSeries g_qTimeSeries;
 TimeSeries g_qdTimeSeries;
 TimeSeries g_taskTimeSeries;
 TimeSeries g_pTimeSeries;
+TimeSeries g_rTimeSeries;
 TimeSeries g_pdTimeSeries;
 TimeSeries g_fpeTimeSeries;
 TimeSeries g_fzTimeSeries;
@@ -525,6 +526,9 @@ void printToFile()
 {
   g_fileDebug.open("/home/cair1/Desktop/octavelogs/kukaFPlogs.m");
 
+  g_fileDebug << "\%Exp Starting Time ROS (Seconds): " << g_startingTime.sec << std::endl;
+  g_fileDebug << "\%Exp Starting Time ROS (NanoSeconds): " << g_startingTime.nsec << std::endl;
+
   if (PARAM_ISSIM)
     g_fileDebug << "\%Simulation" << std::endl;
   else
@@ -545,6 +549,10 @@ void printToFile()
   g_fileDebug << "p = [];" << std::endl;
   for (int i = 0; i < g_pTimeSeries.size(); i++)
     g_fileDebug << "p = [p; " << g_pTimeSeries.print(i) << "];" << std::endl;
+
+  g_fileDebug << "r = [];" << std::endl;
+  for (int i = 0; i < g_rTimeSeries.size(); i++)
+    g_fileDebug << "r = [r; " << g_rTimeSeries.print(i) << "];" << std::endl;
 
   g_fileDebug << "pd = [];" << std::endl;
   for (int i = 0; i < g_pdTimeSeries.size(); i++)
@@ -927,7 +935,7 @@ void optimizeSing4()
 
 int main(int argc, char* argv[])
 {
-  ros::init(argc, argv, "fulcrumpoint_alt");
+  ros::init(argc, argv, "fulcrumpoint");
   ros::NodeHandle n;
 
   ros::Subscriber KUKASubscriber1 = n.subscribe("/iiwa/joint_states", 100, kukaCallJoints);
@@ -938,15 +946,6 @@ int main(int argc, char* argv[])
   KUKAFRIPublisher = n.advertise<std_msgs::Float64MultiArray>("/iiwa/PositionController/command", 3);
 
   ros::Rate loop_rate(1 / PARAM_DT);
-
-  //
-  // PARAM_HTMSTART << -0.88810, -0.18040, -0.42260, 0.26334, -0.04370, 0.94873, -0.31300, -0.00710, 0.45746, -0.25950,
-  //    -0.85050, 0.08227, 0.00000, 0.00000, 0.00000, 1.00000;
-
-  //
-
-  // PARAM_HTMSTART << -0.38110, 0.15219, -0.91180, 0.14836, 0.05167, 0.98832, 0.14334, 0.06185, 0.92305, 0.00752,
-  //     -0.38460, 0.14074, 0.00000, 0.00000, 0.00000, 1.00000;
 
   VelocityConstControlParam param;
   param.taskHtm = PARAM_HTMSTART;
@@ -1080,7 +1079,14 @@ int main(int argc, char* argv[])
         // Compute some things to store
         FulcrumPointResult fpr = g_manip.computeFulcrumPoint(PARAM_FP, getConfig());
         Vector3d pe = fpr.fkr.htmTool.block<3, 1>(0, 3);
+        VectorXd re = VectorXd::Zero(9);
+        re << fpr.fkr.htmTool(0, 0), fpr.fkr.htmTool(0, 1), fpr.fkr.htmTool(0, 2), fpr.fkr.htmTool(1, 0),
+            fpr.fkr.htmTool(1, 1), fpr.fkr.htmTool(1, 2), fpr.fkr.htmTool(2, 0), fpr.fkr.htmTool(2, 1),
+            fpr.fkr.htmTool(2, 2);
+
         g_pTimeSeries.add(pe, getTime());
+        g_rTimeSeries.add(re, getTime());
+
         g_pdTimeSeries.add(g_targetq.b.atTime(getTime()), getTime());
         g_fpeTimeSeries.add(fpr.df, getTime());
         g_fzTimeSeries.add(fpr.fz, getTime());
