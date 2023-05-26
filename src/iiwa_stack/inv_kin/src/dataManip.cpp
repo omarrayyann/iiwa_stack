@@ -1,12 +1,10 @@
 #include <iostream>
+#include <stdio.h>
+#include <cmath>
+#include <iomanip>
 #include <fstream>
-#include "utils.cpp"
 #include <string>
 #include <vector>
-#include <algorithm>
-#include <iterator>
-#include <regex>
-#include <boost/algorithm/string.hpp>
 
 using namespace std;
 
@@ -34,22 +32,85 @@ std::vector<std::vector<double>> quaternion_rotation_matrix(const std::vector<do
   return rot_matrix;
 }
 
-double determinant(const std::vector<std::vector<double>>& matrix)
-{
-  double det = 0.0;
-  det = matrix[0][0] * (matrix[1][1] * matrix[2][2] - matrix[1][2] * matrix[2][1]) -
-        matrix[0][1] * (matrix[1][0] * matrix[2][2] - matrix[1][2] * matrix[2][0]) +
-        matrix[0][2] * (matrix[1][0] * matrix[2][1] - matrix[1][1] * matrix[2][0]);
+// double determinant(const std::vector<std::vector<double>>& matrix)
+// {
+//   double det = 0.0;
+//   det = matrix[0][0] * (matrix[1][1] * matrix[2][2] - matrix[1][2] * matrix[2][1]) -
+//         matrix[0][1] * (matrix[1][0] * matrix[2][2] - matrix[1][2] * matrix[2][0]) +
+//         matrix[0][2] * (matrix[1][0] * matrix[2][1] - matrix[1][1] * matrix[2][0]);
 
-  return det;
-}
+//   return det;
+// }
 
 int main()
 {
+  // Matrix4d Te0;
+  // Te0 << -0.96690, -0.25480, 0.01210, 0.56281, -0.25490, 0.96692, -0.00780, -0.10040, -0.00970, -0.01060, -0.99990,
+  //     -0.11970, 0, 0, 0, 1;
+  // Matrix4d Ted;
+  // Ted << -0.233454, 0.139856, -0.962258, 0.0169589, -0.259304, -0.96272, -0.0770131, 0.00706783, -0.937157, 0.231538,
+  //     0.261018, -0.195464, 0, 0, 0, 1;
+  // Matrix4d Tde = Ted.inverse();
+  // Matrix4d Td0 = Te0 * Tde;
+
+  // ifstream file;
+  // ofstream newfile;
+  // file.open("aurora_modified.csv");
+  // newfile.open("aurora_modified_2.csv");
+
+  // string line;
+  // int count = 0;
+  // vector<double> q;
+  // getline(file, line);
+  // newfile << "X,Y,Z" << endl;
+  // while (getline(file, line))
+  // {
+  //   if (line.empty())
+  //   {
+  //     continue;
+  //   }
+  //   stringstream ss(line);
+  //   string str;
+  //   vector<double> quaternion;
+  //   vector<double> position;
+  //   long int seconds;
+  //   long int nanonseconds;
+  //   int count = 0;
+  //   while (getline(ss, str, ','))
+  //   {
+  //     if (count == 0)
+  //     {
+  //       seconds = stod(str);
+  //     }
+  //     if (count == 1)
+  //     {
+  //       seconds = stod(str);
+  //     }
+  //     if (count >= 2 & count <= 4)
+  //     {
+  //       position.push_back(stod(str));
+  //     }
+
+  //     count++;
+  //   }
+
+  //   if (position.size() == 3)
+  //   {
+  //     vector<std::vector<double>> matrix = {{0.1994, 0.4969, 0.8446, 0.7210},
+  //                                           {0.2049, -0.8640, 0.4599, -0.0079},
+  //                                           {0.9574, 0.0813, -0.2739, -0.1900},
+  //                                           {0.0, 0.0, 0.0, 1.0}};
+  //     vector<double> kukaFramePosition = matrixVectorMultiply(matrix, position);
+
+  //     newfile << seconds << ", " << nanonseconds << "," << kukaFramePosition[0] << "," << kukaFramePosition[2] << ","
+  //             << kukaFramePosition[2] << endl;
+  //   }
+  // }
+
   ifstream file;
   ofstream newfile;
-  file.open("aurora1724.csv");
-  newfile.open("aurora_modified.csv");
+  file.open("1559.csv");
+  newfile.open("1559_modified.csv");
 
   string line;
   int count = 0;
