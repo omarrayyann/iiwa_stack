@@ -109,8 +109,8 @@ int main()
 
   ifstream file;
   ofstream newfile;
-  file.open("1559.csv");
-  newfile.open("1559_modified.csv");
+  file.open("example.csv");
+  newfile.open("aurora_modified.csv");
 
   string line;
   int count = 0;
@@ -130,8 +130,17 @@ int main()
     long int seconds;
     long int nanonseconds;
     int count = 0;
+    int working = true;
     while (getline(ss, str, ','))
     {
+      if (count == 5)
+      {
+        if (str == "Missing")
+        {
+          working = true;
+          break;
+        }
+      }
       if (count == 15)
       {
         seconds = stod(str);
@@ -151,7 +160,7 @@ int main()
       count++;
     }
 
-    if (quaternion.size() == 4)
+    if (quaternion.size() == 4 && working)
     {
       newfile << seconds << "," << nanonseconds << "," << position[0] << "," << position[1] << "," << position[2]
               << ",";
@@ -170,8 +179,7 @@ int main()
           }
         }
       }
+      newfile << endl;
     }
-
-    newfile << endl;
   }
 }

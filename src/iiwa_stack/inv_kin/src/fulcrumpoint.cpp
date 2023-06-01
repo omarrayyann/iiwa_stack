@@ -612,6 +612,8 @@ TwoTimeSeries generatePath(VectorXd p0, double t0, double maxtime)
     deltap << 0.03 * rho * cos(2 * 3.14 * t / 20), 0.03 * sin(2 * 3.14 * t / 20),
         -0.04 * rho + 0.06 * sin(2 * 3.14 * t / 40);
 
+    // deltap << 0.03 * rho * cos(2 * 3.14 * t / 20), 0.03 * sin(2 * 3.14 * t / 20), 0;
+
     VectorXd qdot = fulcrumPointControl(q, p0 + deltap, PARAM_FP);
     desp.add(p0 + deltap, t);
 
